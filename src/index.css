@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply antialiased text-ink bg-white transition-colors;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  /* Navy page + light slate “cards” (see dark UI reference) */
+  html.dark {
+    @apply bg-[#0f172a] text-slate-200;
+  }
+  body {
+    @apply m-0 min-h-dvh overflow-x-clip;
+  }
+  #root {
+    @apply min-h-dvh;
+  }
+  /* Reduce double-tap delay on touch; keep pinch-zoom for accessibility */
+  button,
+  a[href],
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+}
+
+@media print {
+  @page {
+    margin: 10mm;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  /* Receipt: crisp type, keep logo tint, avoid awkward breaks */
+  .receipt-print {
+    font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .receipt-print li {
+    break-inside: avoid;
+  }
+}
