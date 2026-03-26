@@ -17,7 +17,7 @@ interface ThemeState {
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set, get) => ({
-      theme: 'light',
+      theme: 'dark',
       setTheme(t) {
         set({ theme: t })
         applyDom(t)
@@ -35,11 +35,16 @@ export const useThemeStore = create<ThemeState>()(
 export function initThemeFromStorage() {
   try {
     const raw = localStorage.getItem('iphone-trend-theme')
-    if (!raw) return
-    const parsed = JSON.parse(raw) as { state?: { theme?: ThemeMode } }
-    const t = parsed?.state?.theme
-    if (t === 'dark' || t === 'light') applyDom(t)
+    if (raw) {
+      const parsed = JSON.parse(raw) as { state?: { theme?: ThemeMode } }
+      const t = parsed?.state?.theme
+      if (t === 'dark' || t === 'light') {
+        applyDom(t)
+        return
+      }
+    }
   } catch {
     /* ignore */
   }
+  applyDom('dark')
 }

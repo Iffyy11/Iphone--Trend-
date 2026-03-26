@@ -1,0 +1,19 @@
+---
+description: iPhone Trend POS — frontend vs API, MongoDB, Cursor rules
+alwaysApply: true
+---
+
+# Stack boundaries
+
+- **Vite + React** (`src/`): client-only. Never add the `mongodb` package or `MONGODB_URI` here. No server secrets in `VITE_*` env vars.
+- **API** (`server/`): Express in `index.mjs`, DB helper in `db.mjs`. Install Node deps only inside `server/` (`npm run server:install` or `cd server && npm install`). Secrets in **`server/.env`** (gitignored); copy from `server/.env.example`.
+- **New HTTP routes**: add handlers in `server/index.mjs` (or split into `server/routes/*.mjs` if it grows).
+
+# Common mistakes
+
+- **`Cannot GET /some-path`**: Express has no route for that path. Either implement it in `server/index.mjs` or you opened the wrong URL.
+- **`EADDRINUSE` on 8787**: Another `node` is still running the API; stop it or set `PORT` in `server/.env`.
+
+# Cursor rules (not a URL)
+
+Project rules for the AI live as **`.mdc` files** under **`.cursor/rules/`** with YAML frontmatter (`description`, `globs` or `alwaysApply`). There is no `/create-rule` page in this app.

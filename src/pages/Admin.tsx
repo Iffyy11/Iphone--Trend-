@@ -13,7 +13,7 @@ import {
   Trash2,
   Users,
 } from 'lucide-react'
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { SHOP } from '../brand'
 import { summarizeCustomers } from '../lib/customers'
 import {
@@ -64,6 +64,7 @@ export function Admin() {
   const addCashier = usePosStore((s) => s.addCashier)
   const removeCashier = usePosStore((s) => s.removeCashier)
   const updateCashierPin = usePosStore((s) => s.updateCashierPin)
+  const fetchCashiers = usePosStore((s) => s.fetchCashiers)
   const updateAdminCredentials = usePosStore((s) => s.updateAdminCredentials)
 
   const [tab, setTab] = useState<Tab>('overview')
@@ -96,6 +97,10 @@ export function Admin() {
   const [addProductMsg, setAddProductMsg] = useState('')
 
   const today = useMemo(() => startOfDay(new Date()), [])
+
+  useEffect(() => {
+    void fetchCashiers()
+  }, [fetchCashiers])
 
   const completedOrders = useMemo(
     () => orders.filter((o) => o.status === 'completed'),
