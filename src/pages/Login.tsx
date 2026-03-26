@@ -18,6 +18,8 @@ export function Login() {
   const [pin, setPin] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPin, setShowPin] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -45,7 +47,7 @@ export function Login() {
         }
         const ok = await cashierLogin(pin)
         if (!ok) {
-          setError('Invalid PIN, or no cashier accounts yet. Ask an administrator.')
+          setError('Invalid PIN, cashier not found, or server not reachable.')
           return
         }
         navigate('/cashier', { replace: true })
@@ -57,7 +59,7 @@ export function Login() {
       }
       const ok = await adminLogin(email, password)
       if (!ok) {
-        setError('Wrong email or password.')
+        setError('Wrong email/password, admin not found, or server not reachable.')
         return
       }
       navigate('/admin', { replace: true })
@@ -109,6 +111,8 @@ export function Login() {
                     setPin('')
                     setEmail('')
                     setPassword('')
+                    setShowPin(false)
+                    setShowPassword(false)
                   }}
                   className={`rounded-xl border-2 px-4 py-3 text-sm font-semibold capitalize transition ${
                     role === r
@@ -133,7 +137,7 @@ export function Login() {
               </label>
               <input
                 id="pin"
-                type="password"
+                type={showPin ? 'text' : 'password'}
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 value={pin}
@@ -141,6 +145,14 @@ export function Login() {
                 placeholder="Your PIN"
                 className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-slate-900 outline-none focus:border-brand-pink focus:bg-white focus:ring-2 focus:ring-brand-pink/20 dark:border-slate-300 dark:bg-white dark:text-slate-900 dark:placeholder:text-slate-400 dark:focus:bg-white"
               />
+              <label className="mt-2 inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={showPin}
+                  onChange={(e) => setShowPin(e.target.checked)}
+                />
+                Show PIN
+              </label>
             </div>
           ) : (
             <>
@@ -172,12 +184,20 @@ export function Login() {
                 </label>
                 <input
                   id="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-slate-900 outline-none focus:border-brand-pink focus:bg-white focus:ring-2 focus:ring-brand-pink/20 dark:border-slate-300 dark:bg-white dark:text-slate-900 dark:placeholder:text-slate-400 dark:focus:bg-white"
                 />
+                <label className="mt-2 inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={showPassword}
+                    onChange={(e) => setShowPassword(e.target.checked)}
+                  />
+                  Show password
+                </label>
               </div>
             </>
           )}
