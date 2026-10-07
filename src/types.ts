@@ -44,6 +44,11 @@ export interface Order {
   id: string
   createdAt: string
   lines: OrderLine[]
+  /** Sum of lines before discount (absent on legacy records — equals total). */
+  subtotal?: number
+  /** Discount in KSh taken off the subtotal. */
+  discount?: number
+  /** Amount actually charged (subtotal − discount). */
   total: number
   role: UserRole
   staffLabel: string

@@ -6,6 +6,7 @@ import {
   Printer,
   Search,
   ShoppingBag,
+  Tag,
   Trash2,
   User,
   X,
@@ -60,6 +61,9 @@ export function Cashier() {
   const [showReceipt, setShowReceipt] = useState(false)
   const [checkoutError, setCheckoutError] = useState('')
   const [cartOpen, setCartOpen] = useState(false)
+  const [discountOpen, setDiscountOpen] = useState(false)
+  const [discountMode, setDiscountMode] = useState<'amount' | 'percent'>('amount')
+  const [discountInput, setDiscountInput] = useState('')
 
   const categories = useMemo(() => {
     const set = new Set(products.filter((p) => p.active).map((p) => p.category))
@@ -181,6 +185,28 @@ export function Cashier() {
     return a + l.product.price * l.devices.length
   }, 0)
 
+  const discountValue = Number(discountInput.replace(/,/g, '').trim() || 0)
+  const discountError = !Number.isFinite(discountValue) || discountValue < 0
+    ? 'Enter a valid discount.'
+    : discountMode === 'percent' && discountValue > 100
+      ? 'Percentage cannot be more than 100.'
+      : discountMode === 'amount' && discountValue > subtotal
+        ? 'Discount cannot be more than the subtotal.'
+        : ''
+  const discountAmount =
+    !discountOpen || discountError
+      ? 0
+      : discountMode === 'percent'
+        ? Math.round((subtotal * discountValue) / 100)
+        : Math.round(discountValue)
+  const totalDue = subtotal - discountAmount
+
+  function resetDiscount() {
+    setDiscountOpen(false)
+    setDiscountMode('amount')
+    setDiscountInput('')
+  }
+
   function buildLines(): OrderLine[] {
     const lines: OrderLine[] = []
     for (const row of cart) {
@@ -230,6 +256,10 @@ export function Cashier() {
         }
       }
     }
+    if (discountOpen && discountError) {
+      setCheckoutError(discountError)
+      return
+    }
     const lines = buildLines()
     const order = addOrder({
       lines,
@@ -237,6 +267,7 @@ export function Cashier() {
       customerName: customerName.trim(),
       customerId: customerId.trim(),
       note: note.trim() || undefined,
+      discount: discountAmount,
     })
     if (order) {
       setLastOrder(order)
@@ -246,6 +277,7 @@ export function Cashier() {
       setNote('')
       setCustomerName('')
       setCustomerId('')
+      resetDiscount()
     }
   }
 
@@ -281,6 +313,7 @@ export function Cashier() {
     if (cart.length > 0 && !confirm('Clear all items from this sale?')) return
     setCart([])
     setCheckoutError('')
+    resetDiscount()
   }
 
   function deviceComplete(d: DeviceDraft) {
@@ -470,6 +503,80 @@ export function Cashier() {
       </div>
 
       <div className="space-y-3 border-t border-line bg-subtle/50 px-5 pb-[max(1rem,env(safe-area-inset-bottom,0px))] pt-4">
+        {discountOpen ? (
+          <div className="rounded-xl border border-line bg-surface p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="eyebrow flex items-center gap-1.5">
+                <Tag className="h-3.5 w-3.5" /> Discount
+              </p>
+              <button
+                type="button"
+                onClick={resetDiscount}
+                className="text-xs font-medium text-fg-muted hover:text-danger"
+              >
+                Remove
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <div className="inline-flex shrink-0 rounded-lg border border-line bg-subtle p-0.5">
+                {(
+                  [
+                    ['amount', 'KSh'],
+                    ['percent', '%'],
+                  ] as const
+                ).map(([m, label]) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setDiscountMode(m)}
+                    aria-pressed={discountMode === m}
+                    className={`min-w-[2.75rem] rounded-md px-2 text-xs font-semibold transition ${
+                      discountMode === m ? 'bg-surface text-fg shadow-card' : 'text-fg-muted hover:text-fg'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <input
+                value={discountInput}
+                onChange={(e) => setDiscountInput(e.target.value)}
+                inputMode="decimal"
+                placeholder={discountMode === 'amount' ? 'Amount off, e.g. 2000' : 'Percent off, e.g. 5'}
+                aria-label={discountMode === 'amount' ? 'Discount amount in KSh' : 'Discount percentage'}
+                className="input px-3 py-2 tabular-nums"
+                autoFocus
+              />
+            </div>
+            {discountInput && discountError ? (
+              <p className="mt-2 text-xs text-danger">{discountError}</p>
+            ) : null}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setDiscountOpen(true)}
+            disabled={cart.length === 0}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:text-accent-hover disabled:cursor-not-allowed disabled:text-fg-subtle"
+          >
+            <Tag className="h-4 w-4" /> Add discount
+          </button>
+        )}
+        {discountAmount > 0 ? (
+          <dl className="space-y-1 text-sm">
+            <div className="flex justify-between text-fg-muted">
+              <dt>Subtotal</dt>
+              <dd className="tabular-nums">{formatKES(subtotal)}</dd>
+            </div>
+            <div className="flex justify-between text-success">
+              <dt>
+                Discount
+                {discountMode === 'percent' ? ` (${discountValue}%)` : ''}
+              </dt>
+              <dd className="tabular-nums">− {formatKES(discountAmount)}</dd>
+            </div>
+          </dl>
+        ) : null}
         <div className="grid grid-cols-4 gap-1 rounded-xl border border-line bg-subtle p-1">
           {(
             [
@@ -504,7 +611,7 @@ export function Cashier() {
           className="btn-primary flex w-full items-center justify-between px-5 py-3.5 text-base"
         >
           <span>Complete sale</span>
-          <span className="tabular-nums">{formatKES(subtotal)}</span>
+          <span className="tabular-nums">{formatKES(totalDue)}</span>
         </button>
       </div>
     </div>
@@ -632,7 +739,7 @@ export function Cashier() {
             Review sale · {unitCount} item{unitCount === 1 ? '' : 's'}
           </span>
           <span className="flex items-center gap-1 tabular-nums">
-            {formatKES(subtotal)}
+            {formatKES(totalDue)}
             <ChevronUp className="h-4 w-4" />
           </span>
         </button>
@@ -713,6 +820,20 @@ export function Cashier() {
                   </li>
                 ))}
               </ul>
+              {lastOrder.discount ? (
+                <dl className="mt-4 space-y-1 text-sm">
+                  <div className="flex justify-between text-fg-muted">
+                    <dt>Subtotal</dt>
+                    <dd className="tabular-nums">
+                      {formatKES(lastOrder.subtotal ?? lastOrder.total + lastOrder.discount)}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between text-success">
+                    <dt>Discount</dt>
+                    <dd className="tabular-nums">− {formatKES(lastOrder.discount)}</dd>
+                  </div>
+                </dl>
+              ) : null}
               <div className="mt-4 flex items-baseline justify-between">
                 <span className="text-sm capitalize text-fg-muted">Total · {lastOrder.paymentMethod}</span>
                 <span className="text-xl font-semibold tabular-nums">{formatKES(lastOrder.total)}</span>

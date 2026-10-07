@@ -62,6 +62,8 @@ interface PosState {
     customerName: string
     customerId: string
     note?: string
+    /** KSh off the subtotal; clamped to [0, subtotal]. */
+    discount?: number
   }) => Order | null
   voidOrder: (id: string) => void
 }
@@ -270,11 +272,13 @@ export const usePosStore = create<PosState>()(
         }))
       },
 
-      addOrder({ lines, paymentMethod, customerName, customerId, note }) {
+      addOrder({ lines, paymentMethod, customerName, customerId, note, discount }) {
         const { session } = get()
         if (!session.role) return null
         const saleDate = new Date()
-        const total = lines.reduce((a, l) => a + l.unitPrice * l.qty, 0)
+        const subtotal = lines.reduce((a, l) => a + l.unitPrice * l.qty, 0)
+        const off = Math.min(subtotal, Math.max(0, Math.round(discount ?? 0)))
+        const total = subtotal - off
 
         const linesWithExpiry: OrderLine[] = lines.map((l) => {
           const months = l.warrantyMonths ?? 0
@@ -289,6 +293,7 @@ export const usePosStore = create<PosState>()(
           id: newOrderId(),
           createdAt: saleDate.toISOString(),
           lines: linesWithExpiry,
+          ...(off > 0 ? { subtotal, discount: off } : {}),
           total,
           role: session.role,
           staffLabel: session.staffName,

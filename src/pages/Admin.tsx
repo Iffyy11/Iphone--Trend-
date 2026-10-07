@@ -1192,6 +1192,12 @@ function OrderRow({
               </li>
             ))}
           </ul>
+          {order.discount ? (
+            <p className="mt-3 text-xs text-fg-muted">
+              Subtotal {formatKES(order.subtotal ?? order.total + order.discount)} · Discount{' '}
+              <span className="font-semibold text-success">− {formatKES(order.discount)}</span>
+            </p>
+          ) : null}
           {order.note ? <p className="mt-3 text-xs text-fg-muted">Note: {order.note}</p> : null}
           {order.status === 'completed' ? (
             <button
