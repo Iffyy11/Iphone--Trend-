@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { IdleScreen } from './components/IdleScreen'
 import { ThemeSync } from './components/ThemeSync'
 import { AppShell } from './components/AppShell'
 import { Admin } from './pages/Admin'
@@ -31,6 +32,7 @@ export default function App() {
   return (
     <>
       <ThemeSync />
+      <IdleScreen />
       <Routes>
       <Route path="/login" element={<Login />} />
       <Route element={<RequireAuth />}>
