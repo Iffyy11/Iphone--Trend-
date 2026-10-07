@@ -5,8 +5,9 @@ function base(path: string): string {
   return `${API_BASE.replace(/\/+$/, '')}${path}`
 }
 
+/** True when auth/cashiers go through the server API. Production (Vercel) serves /api same-origin. */
 export function hasApiBase(): boolean {
-  return Boolean(API_BASE)
+  return Boolean(API_BASE) || import.meta.env.PROD
 }
 
 export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
