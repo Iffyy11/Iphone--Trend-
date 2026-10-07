@@ -82,11 +82,12 @@ export function Login() {
       <section className="relative hidden overflow-hidden bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-32 -left-16 h-96 w-96 rounded-full bg-indigo-400/20 blur-3xl" />
-        <div className="relative flex items-center gap-3">
-          <LogoMark size="sm" className="ring-white/20" />
-          <span className="text-sm font-semibold tracking-tight">{SHOP.displayName}</span>
-        </div>
+        <span className="relative text-sm font-semibold tracking-tight text-blue-100">{SHOP.displayName}</span>
         <div className="relative max-w-md">
+          <LogoMark
+            size="xl"
+            className="mb-10 rounded-3xl shadow-2xl shadow-blue-950/40 ring-4 ring-white/25 xl:h-64 xl:w-64"
+          />
           <h2 className="text-4xl font-semibold leading-tight tracking-tight">
             Sell faster. Track every device.
           </h2>
@@ -104,8 +105,8 @@ export function Login() {
         </div>
 
         <div className="w-full max-w-sm">
-          <div className="mb-8">
-            <LogoMark size="md" className="mb-6 lg:hidden" />
+          <div className="mb-8 text-center lg:text-left">
+            <LogoMark size="xl" className="mx-auto mb-8 rounded-3xl shadow-pop ring-4 ring-accent/15 lg:hidden" />
             <h1 className="text-2xl font-semibold tracking-tight text-fg">Welcome back</h1>
             <p className="mt-1.5 text-sm text-fg-muted">Sign in to {SHOP.displayName} point of sale.</p>
           </div>

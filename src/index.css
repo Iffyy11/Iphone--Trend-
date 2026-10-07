@@ -94,6 +94,9 @@
   .chip-active {
     @apply border-accent bg-accent text-white hover:text-white;
   }
+  .tag {
+    @apply inline-flex items-center gap-1.5 rounded-md bg-subtle px-2 py-0.5 text-[11px] font-medium text-fg-muted;
+  }
   .badge {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
   }
