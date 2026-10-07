@@ -4,7 +4,11 @@ import { MongoClient } from 'mongodb'
 let clientPromise
 
 function getUri() {
-  const uri = process.env.MONGODB_URI?.trim()
+  // Vercel Storage integrations may add a custom prefix (e.g. STORAGE_MONGODB_URI).
+  const key = 'MONGODB_URI' in process.env
+    ? 'MONGODB_URI'
+    : Object.keys(process.env).find((k) => k.endsWith('MONGODB_URI'))
+  const uri = key ? process.env[key]?.trim() : ''
   if (!uri) throw new Error('MONGODB_URI is not set')
   return uri
 }
