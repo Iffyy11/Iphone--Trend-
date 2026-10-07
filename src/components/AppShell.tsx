@@ -4,6 +4,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom'
 import { SHOP } from '../brand'
 import { ADMIN_SECTIONS, parseAdminTab } from '../navigation'
 import { usePosStore } from '../store/posStore'
+import { InstallButton } from './InstallButton'
 import { LogoMark } from './LogoMark'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -85,6 +86,7 @@ function SidebarContent() {
       </nav>
 
       <div className="space-y-3 border-t border-line p-3">
+        <InstallButton />
         <ThemeToggle className="w-full" />
         <div className="flex items-center gap-3 rounded-xl px-2 py-1.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">

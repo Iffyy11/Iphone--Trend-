@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { KeyRound, Lock, Mail } from 'lucide-react'
 import { SHOP } from '../brand'
+import { InstallButton } from '../components/InstallButton'
 import { LogoMark } from '../components/LogoMark'
 import { ThemeToggle } from '../components/ThemeToggle'
 import type { UserRole } from '../types'
@@ -216,6 +217,7 @@ export function Login() {
               {busy ? 'Please wait…' : 'Continue'}
             </button>
           </form>
+          <InstallButton className="mt-6" />
         </div>
       </section>
     </div>
