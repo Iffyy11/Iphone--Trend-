@@ -4,6 +4,7 @@ import {
   Printer,
   Search,
   ShoppingBag,
+  Smartphone,
   Trash2,
   User,
   X,
@@ -14,6 +15,7 @@ import { DEFAULT_PHONE_WARRANTY_MONTHS, WARRANTY_OPTIONS } from '../data/warrant
 import { formatKES, orderRefFromId } from '../lib/format'
 import { isAccessoryProduct } from '../lib/products'
 import type { Order, OrderLine, PaymentMethod, Product } from '../types'
+import { PageHeader } from '../components/PageHeader'
 import { ReceiptPrint } from '../components/ReceiptPrint'
 import { usePosStore } from '../store/posStore'
 
@@ -226,366 +228,316 @@ export function Cashier() {
     }
   }
 
+  const unitCount = cart.reduce((a, l) => {
+    if (isAccessoryProduct(l.product)) return a + l.qty
+    return a + l.devices.length
+  }, 0)
+
   return (
-    <div className="grid min-w-0 gap-6 text-slate-900 dark:text-slate-900 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
-      <div className="min-w-0 space-y-4">
-        <div className="no-print rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm ring-1 ring-slate-100 dark:border-slate-400/40 dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-400/20">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Catalogue
-          </p>
-          <p className="mt-1 text-sm text-slate-600">{SHOP.gradeLine}</p>
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search models…"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-brand-pink focus:bg-white focus:ring-2 focus:ring-brand-pink/20 dark:border-slate-300 dark:bg-white dark:text-slate-900 dark:placeholder:text-slate-400 dark:focus:bg-white"
-              />
-            </div>
-            <select
-              value={cat}
-              onChange={(e) => setCat(e.target.value)}
-              className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm font-medium text-slate-800 outline-none focus:border-brand-pink focus:ring-2 focus:ring-brand-pink/20 dark:border-slate-300 dark:bg-white dark:text-slate-900 dark:focus:bg-white"
-            >
-              {categories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+    <div className="min-w-0">
+      <PageHeader title="Point of sale" description={SHOP.gradeLine} />
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => addToCart(p)}
-              className="no-print group rounded-2xl border border-slate-200/90 bg-white p-4 text-left shadow-sm ring-1 ring-slate-100 transition hover:border-brand-pink/35 hover:shadow-md dark:border-slate-400/40 dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-400/20 dark:hover:border-brand-pink/50"
-            >
-              <p className="text-xs font-medium text-brand-pink">{p.category}</p>
-              <p className="mt-1 line-clamp-2 text-sm font-semibold text-slate-900 dark:text-slate-900">
-                {p.name}
-              </p>
-              <p className="mt-3 text-lg font-bold text-slate-900 dark:text-slate-900">
-                {formatKES(p.price)}
-              </p>
-            </button>
-          ))}
-        </div>
-        {filtered.length === 0 ? (
-          <p className="text-center text-sm text-slate-500">No matching products.</p>
-        ) : null}
-      </div>
-
-      <aside className="no-print h-fit min-w-0 space-y-4 lg:sticky lg:top-24">
-        <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-b from-white to-slate-50/80 p-5 shadow-lg shadow-slate-200/40 ring-1 ring-slate-100 dark:border-slate-400/40 dark:from-slate-300 dark:to-slate-300 dark:text-slate-900 dark:shadow-none dark:ring-slate-400/20">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-400/50">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-pink/15 text-brand-pink">
-              <User className="h-4 w-4" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">Customer</h2>
-              <p className="text-xs text-slate-500">Required for every sale</p>
-            </div>
-          </div>
-          <div className="mt-4 space-y-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Full name</label>
-              <input
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="Customer name"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-pink focus:ring-2 focus:ring-brand-pink/15 dark:border-slate-300 dark:text-slate-900 dark:placeholder:text-slate-400"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">
-                National ID / Passport
-              </label>
-              <input
-                value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
-                placeholder="ID number"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-pink focus:ring-2 focus:ring-brand-pink/15 dark:border-slate-300 dark:text-slate-900 dark:placeholder:text-slate-400"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-lg shadow-slate-200/50 ring-1 ring-slate-100 dark:border-slate-400/40 dark:bg-slate-300 dark:text-slate-900 dark:shadow-none dark:ring-slate-400/20">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-400/50">
-            <ShoppingBag className="h-5 w-5 text-brand-green" />
-            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-900">Cart</h2>
-            <span className="ml-auto rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-200 dark:text-slate-700">
-              {cart.reduce((a, l) => {
-                if (isAccessoryProduct(l.product)) return a + l.qty
-                return a + l.devices.length
-              }, 0)}{' '}
-              units
-            </span>
-          </div>
-
-          <ul className="max-h-[min(52vh,28rem)] space-y-4 overflow-y-auto py-4">
-            {cart.length === 0 ? (
-              <li className="py-10 text-center text-sm text-slate-400">Cart is empty</li>
-            ) : (
-              cart.map((row) =>
-                isAccessoryProduct(row.product) ? (
-                  <li
-                    key={row.rowId}
-                    className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 dark:border-slate-400/40 dark:bg-slate-200/50"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-900">{row.product.name}</p>
-                        <p className="text-xs text-slate-500">{formatKES(row.product.price)} each</p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          aria-label="Decrease"
-                          onClick={() => setAccessoryQty(row.product.id, row.qty - 1)}
-                          className="rounded-lg border border-slate-200 bg-white p-1.5 hover:bg-slate-100 dark:border-slate-300 dark:bg-white dark:hover:bg-slate-100"
-                        >
-                          <Minus className="h-4 w-4" />
-                        </button>
-                        <span className="w-6 text-center text-sm font-semibold">{row.qty}</span>
-                        <button
-                          type="button"
-                          aria-label="Increase"
-                          onClick={() => setAccessoryQty(row.product.id, row.qty + 1)}
-                          className="rounded-lg border border-slate-200 bg-white p-1.5 hover:bg-slate-100 dark:border-slate-300 dark:bg-white dark:hover:bg-slate-100"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label="Remove"
-                          onClick={() => removeRow(row.rowId)}
-                          className="rounded-lg p-1.5 text-red-600 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </li>
-                ) : (
-                  <li key={row.rowId} className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 dark:border-slate-400/40 dark:bg-slate-200/50">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-900">{row.product.name}</p>
-                        <p className="text-xs text-slate-500">{formatKES(row.product.price)} each</p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setPhoneQty(row.rowId, row.devices.length - 1)}
-                          className="rounded-lg border border-slate-200 bg-white p-1.5 hover:bg-slate-100 dark:border-slate-300 dark:bg-white dark:hover:bg-slate-100"
-                        >
-                          <Minus className="h-4 w-4" />
-                        </button>
-                        <span className="w-6 text-center text-sm font-semibold">
-                          {row.devices.length}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setPhoneQty(row.rowId, row.devices.length + 1)}
-                          className="rounded-lg border border-slate-200 bg-white p-1.5 hover:bg-slate-100 dark:border-slate-300 dark:bg-white dark:hover:bg-slate-100"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeRow(row.rowId)}
-                          className="rounded-lg p-1.5 text-red-600 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="mt-3 space-y-3">
-                      {row.devices.map((d, idx) => (
-                        <div
-                          key={idx}
-                          className="rounded-lg border border-white/80 bg-white p-3 shadow-sm dark:border-slate-300 dark:bg-white"
-                        >
-                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                            Device {idx + 1}
-                          </p>
-                          <div className="grid gap-2 sm:grid-cols-2">
-                            <input
-                              value={d.imei}
-                              onChange={(e) =>
-                                updateDevice(row.rowId, idx, { imei: e.target.value })
-                              }
-                              placeholder="IMEI"
-                              inputMode="numeric"
-                              className="rounded-lg border border-slate-200 px-2 py-2 font-mono text-xs outline-none focus:border-brand-pink dark:border-slate-300 dark:bg-white dark:text-slate-900"
-                            />
-                            <input
-                              value={d.serial}
-                              onChange={(e) =>
-                                updateDevice(row.rowId, idx, { serial: e.target.value })
-                              }
-                              placeholder="Serial number"
-                              className="rounded-lg border border-slate-200 px-2 py-2 font-mono text-xs outline-none focus:border-brand-pink dark:border-slate-300 dark:bg-white dark:text-slate-900"
-                            />
-                          </div>
-                          <label className="mt-2 block text-[11px] font-medium text-slate-500">
-                            Warranty
-                          </label>
-                          <select
-                            value={d.warrantyMonths}
-                            onChange={(e) =>
-                              updateDevice(row.rowId, idx, {
-                                warrantyMonths: Number(e.target.value),
-                              })
-                            }
-                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs outline-none focus:border-brand-pink dark:border-slate-300 dark:bg-white dark:text-slate-900"
-                          >
-                            {WARRANTY_OPTIONS.map((o) => (
-                              <option key={o.months} value={o.months}>
-                                {o.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      ))}
-                    </div>
-                  </li>
-                ),
-              )
-            )}
-          </ul>
-
-          <div className="space-y-3 border-t border-slate-100 pt-4">
-            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Payment
-            </label>
-            <select
-              value={payment}
-              onChange={(e) => setPayment(e.target.value as PaymentMethod)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm outline-none focus:border-brand-pink focus:bg-white dark:border-slate-300 dark:bg-white dark:text-slate-900 dark:focus:bg-white"
-            >
-              <option value="cash">Cash</option>
-              <option value="mpesa">M-Pesa</option>
-              <option value="card">Card</option>
-              <option value="other">Other</option>
-            </select>
-            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Sale note (optional)
-            </label>
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
+        <div className="no-print min-w-0 space-y-4">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
             <input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Internal note"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm outline-none focus:border-brand-pink focus:bg-white dark:border-slate-300 dark:bg-white dark:text-slate-900 dark:placeholder:text-slate-400 dark:focus:bg-white"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search models…"
+              className="input py-3 pl-10"
             />
-            {checkoutError ? (
-              <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{checkoutError}</p>
-            ) : null}
-            <div className="flex items-center justify-between text-lg font-bold text-slate-900 dark:text-slate-900">
-              <span>Total</span>
-              <span>{formatKES(subtotal)}</span>
-            </div>
-            <button
-              type="button"
-              disabled={cart.length === 0}
-              onClick={checkout}
-              className="w-full rounded-xl bg-brand-green py-3.5 text-sm font-bold text-white shadow-md shadow-brand-green/25 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Complete sale
-            </button>
           </div>
+          <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0">
+            {categories.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setCat(c)}
+                className={`chip ${cat === c ? 'chip-active' : ''}`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-4">
+            {filtered.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => addToCart(p)}
+                className="card group flex flex-col p-4 text-left transition hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-pop focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/20"
+              >
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-subtle text-fg-muted transition group-hover:bg-accent/10 group-hover:text-accent">
+                  <Smartphone className="h-5 w-5" />
+                </div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">{p.category}</p>
+                <p className="mt-0.5 line-clamp-2 text-sm font-medium text-fg">{p.name}</p>
+                <div className="mt-auto flex items-center justify-between pt-3">
+                  <p className="text-base font-semibold tabular-nums text-fg">{formatKES(p.price)}</p>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-white opacity-0 transition group-hover:opacity-100">
+                    <Plus className="h-4 w-4" />
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+          {filtered.length === 0 ? (
+            <div className="card p-10 text-center text-sm text-fg-muted">No matching products.</div>
+          ) : null}
         </div>
-      </aside>
+
+        <aside className="no-print h-fit min-w-0 xl:sticky xl:top-8">
+          <div className="card overflow-hidden">
+            <div className="flex items-center gap-2 border-b border-line px-5 py-4">
+              <ShoppingBag className="h-5 w-5 text-accent" />
+              <h2 className="text-base font-semibold">Current sale</h2>
+              <span className="badge-neutral ml-auto tabular-nums">
+                {unitCount} unit{unitCount === 1 ? '' : 's'}
+              </span>
+            </div>
+
+            <div className="space-y-3 border-b border-line px-5 py-4">
+              <p className="eyebrow flex items-center gap-1.5">
+                <User className="h-3.5 w-3.5" /> Customer · required
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                <input
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Full name"
+                  aria-label="Customer full name"
+                  className="input"
+                />
+                <input
+                  value={customerId}
+                  onChange={(e) => setCustomerId(e.target.value)}
+                  placeholder="National ID / Passport"
+                  aria-label="Customer national ID or passport"
+                  className="input"
+                />
+              </div>
+            </div>
+
+            <ul className="max-h-[min(48vh,26rem)] space-y-3 overflow-y-auto px-5 py-4">
+              {cart.length === 0 ? (
+                <li className="flex flex-col items-center py-8 text-center">
+                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-subtle text-fg-subtle">
+                    <ShoppingBag className="h-5 w-5" />
+                  </div>
+                  <p className="text-sm font-medium text-fg">Cart is empty</p>
+                  <p className="mt-0.5 text-xs text-fg-muted">Tap a product to add it.</p>
+                </li>
+              ) : (
+                cart.map((row) =>
+                  isAccessoryProduct(row.product) ? (
+                    <li key={row.rowId} className="rounded-xl border border-line bg-subtle/50 p-3">
+                      <div className="flex items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{row.product.name}</p>
+                          <p className="text-xs text-fg-muted">{formatKES(row.product.price)} each</p>
+                        </div>
+              <div className="flex shrink-0 items-center gap-1 rounded-lg border border-line bg-surface p-0.5">
+                <button type="button" aria-label="Decrease" onClick={() => setAccessoryQty(row.product.id, row.qty - 1)} className="icon-btn h-7 w-7">
+                  <Minus className="h-3.5 w-3.5" />
+                </button>
+                <span className="w-6 text-center text-sm font-semibold tabular-nums">{row.qty}</span>
+                <button type="button" aria-label="Increase" onClick={() => setAccessoryQty(row.product.id, row.qty + 1)} className="icon-btn h-7 w-7">
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <button type="button" aria-label="Remove" onClick={() => removeRow(row.rowId)} className="icon-btn h-8 w-8 hover:bg-danger/10 hover:text-danger">
+                <Trash2 className="h-4 w-4" />
+              </button>
+                      </div>
+                    </li>
+                  ) : (
+                    <li key={row.rowId} className="rounded-xl border border-line bg-subtle/50 p-3">
+                      <div className="flex items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{row.product.name}</p>
+                          <p className="text-xs text-fg-muted">{formatKES(row.product.price)} each</p>
+                        </div>
+              <div className="flex shrink-0 items-center gap-1 rounded-lg border border-line bg-surface p-0.5">
+                <button type="button" aria-label="Decrease" onClick={() => setPhoneQty(row.rowId, row.devices.length - 1)} className="icon-btn h-7 w-7">
+                  <Minus className="h-3.5 w-3.5" />
+                </button>
+                <span className="w-6 text-center text-sm font-semibold tabular-nums">{row.devices.length}</span>
+                <button type="button" aria-label="Increase" onClick={() => setPhoneQty(row.rowId, row.devices.length + 1)} className="icon-btn h-7 w-7">
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <button type="button" aria-label="Remove" onClick={() => removeRow(row.rowId)} className="icon-btn h-8 w-8 hover:bg-danger/10 hover:text-danger">
+                <Trash2 className="h-4 w-4" />
+              </button>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {row.devices.map((d, idx) => (
+                          <div key={idx} className="rounded-lg border border-line bg-surface p-3">
+                            <p className="eyebrow mb-2">Device {idx + 1}</p>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <input
+                                value={d.imei}
+                                onChange={(e) => updateDevice(row.rowId, idx, { imei: e.target.value })}
+                                placeholder="IMEI"
+                                aria-label={`IMEI for device ${idx + 1}`}
+                                inputMode="numeric"
+                                className="input px-3 py-2 font-mono text-xs"
+                              />
+                              <input
+                                value={d.serial}
+                                onChange={(e) => updateDevice(row.rowId, idx, { serial: e.target.value })}
+                                placeholder="Serial number"
+                                aria-label={`Serial number for device ${idx + 1}`}
+                                className="input px-3 py-2 font-mono text-xs"
+                              />
+                            </div>
+                            <select
+                              value={d.warrantyMonths}
+                              onChange={(e) =>
+                                updateDevice(row.rowId, idx, { warrantyMonths: Number(e.target.value) })
+                              }
+                              aria-label={`Warranty for device ${idx + 1}`}
+                              className="input mt-2 px-3 py-2 text-xs"
+                            >
+                              {WARRANTY_OPTIONS.map((o) => (
+                                <option key={o.months} value={o.months}>
+                                  Warranty · {o.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                    </li>
+                  ),
+                )
+              )}
+            </ul>
+
+            <div className="space-y-4 border-t border-line bg-subtle/40 px-5 py-4">
+              <div>
+                <p className="label">Payment method</p>
+                <div className="grid grid-cols-4 gap-1 rounded-xl border border-line bg-subtle p-1">
+                  {(
+                    [
+                      ['cash', 'Cash'],
+                      ['mpesa', 'M-Pesa'],
+                      ['card', 'Card'],
+                      ['other', 'Other'],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setPayment(value)}
+                      aria-pressed={payment === value}
+                      className={`rounded-lg py-1.5 text-xs font-semibold transition ${
+                        payment === value ? 'bg-surface text-fg shadow-card' : 'text-fg-muted hover:text-fg'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <input
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Sale note (optional)"
+                aria-label="Sale note"
+                className="input"
+              />
+              {checkoutError ? (
+                <p className="rounded-lg border border-danger/20 bg-danger/10 px-3 py-2 text-xs text-danger">
+                  {checkoutError}
+                </p>
+              ) : null}
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm text-fg-muted">Total</span>
+                <span className="text-2xl font-semibold tabular-nums tracking-tight">{formatKES(subtotal)}</span>
+              </div>
+              <button
+                type="button"
+                disabled={cart.length === 0}
+                onClick={checkout}
+                className="btn-primary w-full py-3"
+              >
+                Complete sale
+              </button>
+            </div>
+          </div>
+        </aside>
+      </div>
 
       {showReceipt && lastOrder ? (
         <>
-          <div className="no-print fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pt-8 backdrop-blur-sm sm:items-center sm:p-4 sm:pb-4 sm:pt-4">
-            <div className="max-h-[min(90dvh,90vh)] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl ring-1 ring-slate-200 sm:rounded-2xl sm:p-6">
+          <div className="no-print fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pt-8 backdrop-blur-sm sm:items-center sm:p-4">
+            <div className="max-h-[min(90dvh,90vh)] w-full max-w-md overflow-y-auto rounded-t-2xl border border-line bg-surface p-5 shadow-pop sm:rounded-2xl sm:p-6">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-xs font-semibold uppercase text-slate-400">Sale complete</p>
-                  <p className="text-lg font-bold text-slate-900">
-                    Order {orderRefFromId(lastOrder.id)}
-                  </p>
-                  <div className="mt-2 rounded-xl border border-slate-100 bg-slate-50/90 px-3 py-2 text-sm">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                      Customer
-                    </p>
-                    <p className="font-semibold text-slate-900">{lastOrder.customerName ?? '—'}</p>
-                    <p className="mt-0.5 text-xs text-slate-600">
-                      ID: {lastOrder.customerId ?? '—'}
-                    </p>
-                  </div>
+                  <span className="badge-success">Sale complete</span>
+                  <p className="mt-2 text-lg font-semibold">Order {orderRefFromId(lastOrder.id)}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowReceipt(false)}
-                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                  className="icon-btn"
                   aria-label="Close"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <ul className="mt-4 space-y-3 border-y border-slate-100 py-4 text-sm">
+              <div className="mt-4 rounded-xl border border-line bg-subtle/60 px-3 py-2.5 text-sm">
+                <p className="eyebrow">Customer</p>
+                <p className="mt-0.5 font-medium">{lastOrder.customerName ?? '—'}</p>
+                <p className="text-xs text-fg-muted">ID: {lastOrder.customerId ?? '—'}</p>
+              </div>
+              <ul className="mt-4 space-y-3 border-y border-line py-4 text-sm">
                 {lastOrder.lines.map((l, i) => (
-                  <li key={i} className="border-b border-slate-50 pb-3 last:border-0 last:pb-0">
+                  <li key={i}>
                     <div className="flex justify-between gap-2 font-medium">
-                      <span className="text-slate-700">
+                      <span>
                         {l.qty}× {l.name}
                       </span>
-                      <span>{formatKES(l.unitPrice * l.qty)}</span>
+                      <span className="tabular-nums">{formatKES(l.unitPrice * l.qty)}</span>
                     </div>
                     {l.imei || l.serialNumber || (l.warrantyMonths ?? 0) > 0 ? (
-                      <div className="mt-2 space-y-0.5 rounded-lg border border-slate-100 bg-white px-2 py-1.5 text-xs text-slate-700">
+                      <div className="mt-1.5 space-y-0.5 text-xs text-fg-muted">
                         <p>
-                          <span className="font-semibold text-slate-500">IMEI: </span>
-                          <span className="font-mono">{l.imei?.trim() || '—'}</span>
+                          IMEI <span className="font-mono text-fg">{l.imei?.trim() || '—'}</span>
                         </p>
                         <p>
-                          <span className="font-semibold text-slate-500">Serial: </span>
-                          <span className="font-mono">{l.serialNumber?.trim() || '—'}</span>
+                          Serial <span className="font-mono text-fg">{l.serialNumber?.trim() || '—'}</span>
                         </p>
                         <p>
-                          <span className="font-semibold text-slate-500">Warranty: </span>
-                          {l.warrantyMonths
-                            ? `${l.warrantyMonths} mo${
-                                l.warrantyExpiresAt
-                                  ? ` · ends ${new Date(l.warrantyExpiresAt).toLocaleDateString('en-KE')}`
-                                  : ''
-                              }`
-                            : '—'}
+                          Warranty{' '}
+                          <span className="text-fg">
+                            {l.warrantyMonths
+                              ? `${l.warrantyMonths} mo${
+                                  l.warrantyExpiresAt
+                                    ? ` · ends ${new Date(l.warrantyExpiresAt).toLocaleDateString('en-KE')}`
+                                    : ''
+                                }`
+                              : '—'}
+                          </span>
                         </p>
                       </div>
                     ) : null}
                   </li>
                 ))}
               </ul>
-              <p className="mt-2 flex justify-between text-lg font-bold">
-                <span>Total</span>
-                <span>{formatKES(lastOrder.total)}</span>
-              </p>
-              <p className="mt-1 text-xs capitalize text-slate-500">{lastOrder.paymentMethod}</p>
-              <div className="mt-6 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
-                >
+              <div className="mt-4 flex items-baseline justify-between">
+                <span className="text-sm capitalize text-fg-muted">Total · {lastOrder.paymentMethod}</span>
+                <span className="text-xl font-semibold tabular-nums">{formatKES(lastOrder.total)}</span>
+              </div>
+              <div className="mt-6 flex gap-2">
+                <button type="button" onClick={() => window.print()} className="btn-primary flex-1">
                   <Printer className="h-4 w-4" />
                   Print receipt
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setShowReceipt(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700"
-                >
+                <button type="button" onClick={() => setShowReceipt(false)} className="btn-secondary">
                   Done
                 </button>
               </div>

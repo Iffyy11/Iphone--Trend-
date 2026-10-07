@@ -19,7 +19,7 @@ export function ReceiptPrint({ order }: { order: Order }) {
           <div className="mx-auto mb-3 flex justify-center">
             <LogoMark
               size="md"
-              className="shadow-lg ring-2 ring-brand-pink/40 print:shadow-none"
+              className="shadow-lg ring-2 ring-accent/40 print:shadow-none"
             />
           </div>
           <h1 className="font-sans text-lg font-bold tracking-tight text-slate-900">

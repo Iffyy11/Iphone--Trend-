@@ -1,19 +1,35 @@
 import { Moon, Sun } from 'lucide-react'
 import { useThemeStore } from '../store/themeStore'
 
+/** Segmented Light / Dark switch. */
 export function ThemeToggle({ className = '' }: { className?: string }) {
   const theme = useThemeStore((s) => s.theme)
-  const toggle = useThemeStore((s) => s.toggle)
-  const dark = theme === 'dark'
+  const setTheme = useThemeStore((s) => s.setTheme)
+  const options = [
+    { value: 'light', label: 'Light', Icon: Sun },
+    { value: 'dark', label: 'Dark', Icon: Moon },
+  ] as const
   return (
-    <button
-      type="button"
-      onClick={() => toggle()}
-      className={`inline-flex h-11 min-w-[2.75rem] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-400 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 sm:h-auto sm:min-w-0 sm:justify-start sm:py-2 ${className}`}
-      aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+    <div
+      role="radiogroup"
+      aria-label="Theme"
+      className={`inline-flex rounded-xl border border-line bg-subtle p-1 ${className}`}
     >
-      {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-      <span className="hidden sm:inline">{dark ? 'Light' : 'Dark'}</span>
-    </button>
+      {options.map(({ value, label, Icon }) => (
+        <button
+          key={value}
+          type="button"
+          role="radio"
+          aria-checked={theme === value}
+          onClick={() => setTheme(value)}
+          className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+            theme === value ? 'bg-surface text-fg shadow-card' : 'text-fg-muted hover:text-fg'
+          }`}
+        >
+          <Icon className="h-3.5 w-3.5" aria-hidden />
+          {label}
+        </button>
+      ))}
+    </div>
   )
 }

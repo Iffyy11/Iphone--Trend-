@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+/** v2: the redesign defaults everyone to light once. */
+const THEME_KEY = 'iphone-trend-theme-v2'
+
 export type ThemeMode = 'light' | 'dark'
 
 function applyDom(theme: ThemeMode) {
@@ -17,7 +20,7 @@ interface ThemeState {
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set, get) => ({
-      theme: 'dark',
+      theme: 'light',
       setTheme(t) {
         set({ theme: t })
         applyDom(t)
@@ -28,13 +31,13 @@ export const useThemeStore = create<ThemeState>()(
         applyDom(n)
       },
     }),
-    { name: 'iphone-trend-theme' },
+    { name: THEME_KEY },
   ),
 )
 
 export function initThemeFromStorage() {
   try {
-    const raw = localStorage.getItem('iphone-trend-theme')
+    const raw = localStorage.getItem(THEME_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as { state?: { theme?: ThemeMode } }
       const t = parsed?.state?.theme
@@ -46,5 +49,5 @@ export function initThemeFromStorage() {
   } catch {
     /* ignore */
   }
-  applyDom('dark')
+  applyDom('light')
 }

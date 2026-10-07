@@ -1,20 +1,23 @@
 import {
-  BarChart3,
-  CalendarRange,
   ChevronDown,
   ChevronRight,
   Download,
   KeyRound,
-  Package,
+  Phone,
   Plus,
   Search,
   ShieldCheck,
   ShoppingCart,
+  Store,
   Trash2,
+  TrendingUp,
   Users,
+  type LucideIcon,
 } from 'lucide-react'
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { SHOP } from '../brand'
+import { PageHeader } from '../components/PageHeader'
 import { summarizeCustomers } from '../lib/customers'
 import {
   isOrderInRange,
@@ -33,9 +36,8 @@ import {
   warrantyRowMeta,
 } from '../lib/warrantyRecords'
 import type { Order, Product } from '../types'
+import { ADMIN_SECTIONS, parseAdminTab } from '../navigation'
 import { usePosStore } from '../store/posStore'
-
-type Tab = 'overview' | 'orders' | 'customers' | 'warranties' | 'staff' | 'products'
 
 type SalesPeriod = 'week' | 'month' | 'year' | 'custom'
 
@@ -67,7 +69,9 @@ export function Admin() {
   const fetchCashiers = usePosStore((s) => s.fetchCashiers)
   const updateAdminCredentials = usePosStore((s) => s.updateAdminCredentials)
 
-  const [tab, setTab] = useState<Tab>('overview')
+  const [searchParams] = useSearchParams()
+  const tab = parseAdminTab(searchParams.get('tab'))
+  const section = ADMIN_SECTIONS.find((x) => x.key === tab)!
   const [newCashierName, setNewCashierName] = useState('')
   const [newCashierPin, setNewCashierPin] = useState('')
   const [newCashierPin2, setNewCashierPin2] = useState('')
@@ -256,216 +260,193 @@ export function Admin() {
     setAddProductMsg('Product added.')
   }
 
+  const headerActions =
+    tab === 'warranties' ? (
+      <button
+        type="button"
+        onClick={() => {
+          const csv = exportWarrantiesCsv(filteredWarranties)
+          downloadTextFile(`warranties-${new Date().toISOString().slice(0, 10)}.csv`, csv)
+        }}
+        className="btn-secondary"
+      >
+        <Download className="h-4 w-4" />
+        Export CSV
+      </button>
+    ) : tab === 'products' ? (
+      <button
+        type="button"
+        onClick={() => {
+          setAddProductMsg('')
+          setAddProductOpen((o) => !o)
+        }}
+        className="btn-primary"
+      >
+        <Plus className="h-4 w-4" />
+        Add product
+      </button>
+    ) : null
+
   return (
-    <div className="space-y-6 text-slate-900 dark:text-slate-900">
-      <div className="rounded-2xl border border-slate-200/90 bg-white p-1.5 shadow-sm ring-1 ring-slate-100 dark:border-slate-400/40 dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-400/20">
-        <div className="flex snap-x snap-mandatory gap-1 overflow-x-auto pb-0.5 [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden">
-          {(
-            [
-              ['overview', 'Overview', BarChart3],
-              ['orders', 'Orders', ShoppingCart],
-              ['customers', 'Customers', Users],
-              ['warranties', 'Warranties', ShieldCheck],
-              ['staff', 'Staff', KeyRound],
-              ['products', 'Products', Package],
-            ] as const
-          ).map(([key, label, Icon]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTab(key)}
-              className={`flex shrink-0 snap-start items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold transition sm:flex-1 sm:justify-center lg:flex-none ${
-                tab === key
-                  ? 'bg-slate-900 text-white shadow-sm dark:bg-slate-900 dark:text-white'
-                  : 'text-slate-600 hover:bg-slate-50 dark:text-slate-700 dark:hover:bg-slate-200'
-              }`}
-            >
-              <Icon className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="whitespace-nowrap">{label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="min-w-0">
+      <PageHeader title={section.label} description={section.description} actions={headerActions} />
 
       {tab === 'overview' ? (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm ring-1 ring-slate-100 dark:border-slate-400/40 dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-400/20">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-slate-900">
-                  <CalendarRange className="h-4 w-4 text-brand-pink" />
-                  Sales by period
-                </p>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-600">
-                  Completed orders only
-                  {salesRange
-                    ? ` · ${formatSalesRangeLabel(salesRange.start, salesRange.end)}`
-                    : salesPeriod === 'custom'
-                      ? ' · pick dates'
-                      : ''}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {(
-                  [
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+            <StatCard
+              icon={TrendingUp}
+              label="Today's sales"
+              value={formatKES(todayTotal)}
+              hint={`${todayOrders.length} completed order${todayOrders.length === 1 ? '' : 's'}`}
+            />
+            <StatCard
+              icon={ShieldCheck}
+              label="Active warranties"
+              value={String(activeWarrantyCount)}
+              hint="Devices under cover"
+              tone="success"
+            />
+            <StatCard
+              icon={Users}
+              label="Customers"
+              value={String(customers.length)}
+              hint="Unique profiles"
+            />
+            <StatCard
+              icon={ShoppingCart}
+              label="All orders"
+              value={String(orders.length)}
+              hint={`${orders.filter((o) => o.status === 'void').length} voided`}
+            />
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-3">
+            <section className="card p-6 lg:col-span-2">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-base font-semibold">Sales by period</h2>
+                  <p className="mt-0.5 text-xs text-fg-muted">
+                    Completed orders only
+                    {salesRange
+                      ? ` · ${formatSalesRangeLabel(salesRange.start, salesRange.end)}`
+                      : salesPeriod === 'custom'
+                        ? ' · pick dates'
+                        : ''}
+                  </p>
+                </div>
+                <Segmented
+                  value={salesPeriod}
+                  onChange={setSalesPeriod}
+                  options={[
                     ['week', 'Week'],
                     ['month', 'Month'],
                     ['year', 'Year'],
                     ['custom', 'Custom'],
-                  ] as const
-                ).map(([k, label]) => (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() => setSalesPeriod(k)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-                      salesPeriod === k
-                        ? 'bg-slate-900 text-white dark:bg-slate-900 dark:text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-200 dark:text-slate-700 dark:hover:bg-slate-300'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
+                  ]}
+                />
               </div>
-            </div>
-            {salesPeriod === 'custom' ? (
-              <div className="mt-4 flex flex-wrap items-end gap-3">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-700">
-                    From
-                  </label>
-                  <input
-                    type="date"
-                    value={customFrom}
-                    onChange={(e) => setCustomFrom(e.target.value)}
-                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-300 dark:bg-white dark:text-slate-900"
-                  />
+              {salesPeriod === 'custom' ? (
+                <div className="mt-5 flex flex-wrap items-end gap-3">
+                  <div>
+                    <label className="label">From</label>
+                    <input
+                      type="date"
+                      value={customFrom}
+                      onChange={(e) => setCustomFrom(e.target.value)}
+                      className="input w-auto"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">To</label>
+                    <input
+                      type="date"
+                      value={customTo}
+                      onChange={(e) => setCustomTo(e.target.value)}
+                      className="input w-auto"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-700">
-                    To
-                  </label>
-                  <input
-                    type="date"
-                    value={customTo}
-                    onChange={(e) => setCustomTo(e.target.value)}
-                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-300 dark:bg-white dark:text-slate-900"
-                  />
+              ) : null}
+              {customRangeInvalid ? (
+                <p className="mt-5 text-sm text-warning">Pick a valid date range (from before to).</p>
+              ) : (
+                <div className="mt-6 grid grid-cols-2 gap-4">
+                  <div className="rounded-xl bg-subtle/70 p-4">
+                    <p className="eyebrow">Revenue</p>
+                    <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl">
+                      {formatKES(periodTotal)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-subtle/70 p-4">
+                    <p className="eyebrow">Orders</p>
+                    <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl">
+                      {periodOrders.length}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ) : null}
-            {customRangeInvalid ? (
-              <p className="mt-3 text-sm text-amber-700 dark:text-amber-400">
-                Pick a valid date range (from before to).
-              </p>
-            ) : (
-              <div className="mt-4 flex flex-wrap items-baseline gap-6 border-t border-slate-100 pt-4 dark:border-slate-400/60">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Revenue
-                  </p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-slate-900">
-                    {formatKES(periodTotal)}
-                  </p>
+              )}
+            </section>
+
+            <section className="card flex flex-col p-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                  <Store className="h-5 w-5" />
                 </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Orders
-                  </p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-slate-900">
-                    {periodOrders.length}
-                  </p>
+                <div className="min-w-0">
+                  <h2 className="truncate text-base font-semibold">{SHOP.displayName}</h2>
+                  <p className="text-xs text-fg-muted">{SHOP.gradeLine}</p>
                 </div>
               </div>
-            )}
+              <dl className="mt-6 space-y-3 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="flex items-center gap-2 text-fg-muted">
+                    <Phone className="h-4 w-4" /> Phone
+                  </dt>
+                  <dd className="font-medium">{SHOP.phone}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="flex items-center gap-2 text-fg-muted">
+                    <KeyRound className="h-4 w-4" /> Cashiers
+                  </dt>
+                  <dd className="font-medium">{cashiers.length}</dd>
+                </div>
+              </dl>
+            </section>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm ring-1 ring-slate-100 dark:border-slate-400/40 dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-400/20">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Today · sales
-            </p>
-            <p className="mt-2 text-3xl font-bold text-slate-900">{formatKES(todayTotal)}</p>
-            <p className="mt-1 text-sm text-slate-500">
-              {todayOrders.length} completed order{todayOrders.length === 1 ? '' : 's'}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm ring-1 ring-slate-100 dark:border-slate-400/40 dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-400/20">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Active warranties
-            </p>
-            <p className="mt-2 text-3xl font-bold text-emerald-700">{activeWarrantyCount}</p>
-            <p className="mt-1 text-sm text-slate-500">Devices under cover</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm ring-1 ring-slate-100 dark:border-slate-400/40 dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-400/20">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Customers (tracked)
-            </p>
-            <p className="mt-2 text-3xl font-bold text-slate-900">{customers.length}</p>
-            <p className="mt-1 text-sm text-slate-500">Unique profiles</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm ring-1 ring-slate-100 dark:border-slate-400/40 dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-400/20">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Cashier PINs
-            </p>
-            <p className="mt-2 text-3xl font-bold text-slate-900">{cashiers.length}</p>
-            <p className="mt-1 text-sm text-slate-500">Registered in Staff</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm ring-1 ring-slate-100 dark:border-slate-400/40 dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-400/20">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              All orders
-            </p>
-            <p className="mt-2 text-3xl font-bold text-slate-900">{orders.length}</p>
-            <p className="mt-1 text-sm text-slate-500">
-              {orders.filter((o) => o.status === 'void').length} voided
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm ring-1 ring-slate-100 dark:border-slate-400/40 dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-400/20 sm:col-span-2 xl:col-span-3 2xl:col-span-5">
-            <p className="text-sm font-bold text-slate-900">Shop</p>
-            <p className="mt-1 text-sm font-medium text-slate-800">{SHOP.displayName}</p>
-            <p className="mt-1 text-xs text-slate-500">{SHOP.gradeLine}</p>
-            <p className="mt-2 text-xs text-slate-500">{SHOP.phone}</p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm ring-1 ring-slate-100 dark:border-slate-400/40 dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-400/20 sm:col-span-2 xl:col-span-3 2xl:col-span-5">
-            <p className="text-sm font-bold text-slate-900">Top sellers today</p>
+          <section className="card p-6">
+            <h2 className="text-base font-semibold">Top sellers today</h2>
             {topToday.length === 0 ? (
-              <p className="mt-4 text-sm text-slate-500">No sales recorded today yet.</p>
+              <p className="mt-4 text-sm text-fg-muted">No sales recorded today yet.</p>
             ) : (
-              <ul className="mt-4 divide-y divide-slate-100">
+              <ul className="mt-4 divide-y divide-line">
                 {topToday.map((row, i) => (
-                  <li key={i} className="flex items-center justify-between py-3 text-sm">
-                    <span className="font-medium text-slate-800">{row.name}</span>
-                    <span className="text-slate-500">
-                      {row.qty} sold · {formatKES(row.revenue)}
+                  <li key={i} className="flex items-center gap-3 py-3 text-sm">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-subtle text-xs font-semibold text-fg-muted">
+                      {i + 1}
                     </span>
+                    <span className="min-w-0 flex-1 truncate font-medium">{row.name}</span>
+                    <span className="text-fg-muted">{row.qty} sold</span>
+                    <span className="w-28 text-right font-semibold tabular-nums">{formatKES(row.revenue)}</span>
                   </li>
                 ))}
               </ul>
             )}
-          </div>
-        </div>
+          </section>
         </div>
       ) : null}
 
       {tab === 'orders' ? (
-        <div className="rounded-2xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-100 dark:border-slate-400/40 dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-400/20">
-          <div className="flex flex-col gap-3 border-b border-slate-100 p-4 dark:border-slate-400/50 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                value={orderQuery}
-                onChange={(e) => setOrderQuery(e.target.value)}
-                placeholder="Order, customer, ID, IMEI, serial, product…"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-brand-pink focus:bg-white focus:ring-2 focus:ring-brand-pink/20 dark:border-slate-300 dark:bg-white dark:text-slate-900 dark:placeholder:text-slate-400 dark:focus:bg-white"
-              />
-            </div>
-          </div>
-          <div className="divide-y divide-slate-100 dark:divide-slate-400/50">
+        <div className="space-y-4">
+          <SearchInput
+            value={orderQuery}
+            onChange={setOrderQuery}
+            placeholder="Order, customer, ID, IMEI, serial, product…"
+          />
+          <div className="card divide-y divide-line overflow-hidden">
             {filteredOrders.length === 0 ? (
-              <p className="p-8 text-center text-sm text-slate-500">No orders match.</p>
+              <EmptyState>No orders match.</EmptyState>
             ) : (
               filteredOrders.map((o) => (
                 <OrderRow
@@ -483,44 +464,41 @@ export function Admin() {
 
       {tab === 'customers' ? (
         <div className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              value={customerQuery}
-              onChange={(e) => setCustomerQuery(e.target.value)}
-              placeholder="Search by name or ID…"
-              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-brand-pink focus:ring-2 focus:ring-brand-pink/15 dark:border-slate-300 dark:bg-white dark:text-slate-900 dark:placeholder:text-slate-400"
-            />
-          </div>
-          <div className="rounded-2xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-100 dark:border-slate-400/40 dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-400/20">
+          <SearchInput value={customerQuery} onChange={setCustomerQuery} placeholder="Search by name or ID…" />
+          <div className="card divide-y divide-line overflow-hidden">
             {filteredCustomers.length === 0 ? (
-              <p className="p-8 text-center text-sm text-slate-500">No customers found.</p>
+              <EmptyState>No customers found.</EmptyState>
             ) : (
               filteredCustomers.map((c) => (
-                <div key={c.key} className="border-b border-slate-100 last:border-0 dark:border-slate-400/50">
+                <div key={c.key}>
                   <button
                     type="button"
                     onClick={() => setCustOpen((x) => ({ ...x, [c.key]: !x[c.key] }))}
-                    className="flex w-full items-center gap-3 px-4 py-4 text-left hover:bg-slate-50 dark:hover:bg-slate-200/70"
+                    className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-subtle/60 sm:px-5"
                   >
-                    {custOpen[c.key] ? (
-                      <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-                    )}
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">
+                      {c.customerName.trim().slice(0, 2).toUpperCase()}
+                    </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-slate-900">{c.customerName}</p>
-                      <p className="text-xs text-slate-500">ID {c.customerId}</p>
+                      <p className="truncate text-sm font-medium">{c.customerName}</p>
+                      <p className="text-xs text-fg-muted">ID {c.customerId}</p>
                     </div>
                     <div className="text-right text-sm">
-                      <p className="font-bold text-slate-900">{formatKES(c.totalSpent)}</p>
-                      <p className="text-xs text-slate-500">{c.orders.length} purchases</p>
+                      <p className="font-semibold tabular-nums">{formatKES(c.totalSpent)}</p>
+                      <p className="text-xs text-fg-muted">
+                        {c.orders.length} purchase{c.orders.length === 1 ? '' : 's'}
+                      </p>
                     </div>
+                    {custOpen[c.key] ? (
+                      <ChevronDown className="h-4 w-4 shrink-0 text-fg-subtle" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 shrink-0 text-fg-subtle" />
+                    )}
                   </button>
                   {custOpen[c.key] ? (
-                    <div className="border-t border-slate-100 bg-slate-50/80 px-4 py-4 dark:border-slate-400/50 dark:bg-slate-200/50">
-                      <p className="text-xs font-semibold uppercase text-slate-400">Purchase history</p>
-                      <ul className="mt-3 space-y-3">
+                    <div className="border-t border-line bg-subtle/40 px-4 py-4 sm:px-5">
+                      <p className="eyebrow">Purchase history</p>
+                      <ul className="mt-3 space-y-2">
                         {c.orders
                           .slice()
                           .sort(
@@ -528,21 +506,16 @@ export function Admin() {
                               new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
                           )
                           .map((o) => (
-                            <li
-                              key={o.id}
-                              className="rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-slate-300"
-                            >
+                            <li key={o.id} className="rounded-xl border border-line bg-surface p-3 text-sm">
                               <div className="flex flex-wrap items-center justify-between gap-2">
-                                <span className="font-mono font-semibold text-slate-800">
-                                  {orderRefFromId(o.id)}
-                                </span>
-                                <span className="font-bold text-slate-900">{formatKES(o.total)}</span>
+                                <span className="font-mono text-xs font-semibold">{orderRefFromId(o.id)}</span>
+                                <span className="font-semibold tabular-nums">{formatKES(o.total)}</span>
                               </div>
-                              <p className="mt-1 text-xs text-slate-500">
+                              <p className="mt-1 text-xs text-fg-muted">
                                 {new Date(o.createdAt).toLocaleString('en-KE')} · {o.staffLabel} ·{' '}
                                 <span className="capitalize">{o.paymentMethod}</span>
                               </p>
-                              <ul className="mt-2 space-y-1 text-xs text-slate-600">
+                              <ul className="mt-2 space-y-0.5 text-xs text-fg-muted">
                                 {o.lines.map((l, i) => (
                                   <li key={i}>
                                     {l.qty}× {l.name}
@@ -566,95 +539,71 @@ export function Admin() {
       {tab === 'warranties' ? (
         <div className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
+            <div className="flex-1">
+              <SearchInput
                 value={warrantyQuery}
-                onChange={(e) => setWarrantyQuery(e.target.value)}
+                onChange={setWarrantyQuery}
                 placeholder="Search customer, IMEI, serial, product…"
-                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-brand-pink focus:ring-2 focus:ring-brand-pink/15 dark:border-slate-300 dark:bg-white dark:text-slate-900 dark:placeholder:text-slate-400"
               />
             </div>
-            <div className="flex flex-wrap gap-2">
-              {(['all', 'active', 'expired'] as const).map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => setWarrantyFilter(f)}
-                  className={`rounded-full px-4 py-2 text-xs font-semibold capitalize ${
-                    warrantyFilter === f
-                      ? 'bg-slate-900 text-white dark:bg-slate-900 dark:text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-200 dark:text-slate-700 dark:hover:bg-slate-300'
-                  }`}
-                >
-                  {f}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const csv = exportWarrantiesCsv(filteredWarranties)
-                downloadTextFile(`warranties-${new Date().toISOString().slice(0, 10)}.csv`, csv)
-              }}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-400 dark:bg-white dark:hover:bg-slate-100"
-            >
-              <Download className="h-4 w-4" />
-              Export CSV
-            </button>
+            <Segmented
+              value={warrantyFilter}
+              onChange={setWarrantyFilter}
+              options={[
+                ['all', 'All'],
+                ['active', 'Active'],
+                ['expired', 'Expired'],
+              ]}
+            />
           </div>
 
-          <div className="overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-100 dark:border-slate-400/40 dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-400/20">
+          <div className="card overflow-x-auto">
             <table className="w-full min-w-[880px] text-left text-sm">
-              <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500 dark:bg-slate-200/90 dark:text-slate-700">
+              <thead className="table-head">
                 <tr>
-                  <th className="px-4 py-3">Customer</th>
-                  <th className="px-4 py-3">Product</th>
-                  <th className="px-4 py-3">IMEI / Serial</th>
-                  <th className="px-4 py-3">Purchased</th>
-                  <th className="px-4 py-3">Expires</th>
-                  <th className="px-4 py-3">Days left</th>
-                  <th className="px-4 py-3">Status</th>
+                  <th className="px-5 py-3">Customer</th>
+                  <th className="px-5 py-3">Product</th>
+                  <th className="px-5 py-3">IMEI / Serial</th>
+                  <th className="px-5 py-3">Purchased</th>
+                  <th className="px-5 py-3">Expires</th>
+                  <th className="px-5 py-3">Days left</th>
+                  <th className="px-5 py-3">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-400/50">
+              <tbody className="divide-y divide-line">
                 {filteredWarranties.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
-                      No warranty records match.
+                    <td colSpan={7}>
+                      <EmptyState>No warranty records match.</EmptyState>
                     </td>
                   </tr>
                 ) : (
                   filteredWarranties.map((r) => {
                     const { status, daysLeft } = warrantyRowMeta(r.expiresAt)
                     return (
-                      <tr key={r.key} className="hover:bg-slate-50/80 dark:hover:bg-slate-200/60">
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-slate-900">{r.customerName}</p>
-                          <p className="text-xs text-slate-500">ID {r.customerId}</p>
-                          <p className="font-mono text-[11px] text-slate-400">{r.orderRef}</p>
+                      <tr key={r.key} className="transition hover:bg-subtle/50">
+                        <td className="px-5 py-3">
+                          <p className="font-medium">{r.customerName}</p>
+                          <p className="text-xs text-fg-muted">ID {r.customerId}</p>
+                          <p className="font-mono text-[11px] text-fg-subtle">{r.orderRef}</p>
                         </td>
-                        <td className="px-4 py-3 text-slate-700">{r.productName}</td>
-                        <td className="px-4 py-3 font-mono text-xs text-slate-600">
+                        <td className="px-5 py-3 text-fg-muted">{r.productName}</td>
+                        <td className="px-5 py-3 font-mono text-xs text-fg-muted">
                           {r.imei ? <p>IMEI {r.imei}</p> : null}
                           {r.serialNumber ? <p>S/N {r.serialNumber}</p> : null}
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-600">
+                        <td className="whitespace-nowrap px-5 py-3 text-xs text-fg-muted">
                           {new Date(r.purchasedAt).toLocaleDateString('en-KE')}
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-600">
+                        <td className="whitespace-nowrap px-5 py-3 text-xs text-fg-muted">
                           {new Date(r.expiresAt).toLocaleDateString('en-KE')}
                         </td>
-                        <td className="px-4 py-3 font-semibold text-slate-900">
+                        <td className="px-5 py-3 font-semibold tabular-nums">
                           {status === 'expired' ? '—' : daysLeft}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-5 py-3">
                           <span
-                            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                              status === 'active'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-slate-200 text-slate-700'
-                            }`}
+                            className={`capitalize ${status === 'active' ? 'badge-success' : 'badge-neutral'}`}
                           >
                             {status}
                           </span>
@@ -670,17 +619,17 @@ export function Admin() {
       ) : null}
 
       {tab === 'staff' ? (
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm ring-1 ring-slate-100 dark:border-slate-400/40 dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-400/20">
-            <h2 className="text-lg font-bold text-slate-900">Cashier PINs</h2>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-600">
-              Enter a name, then leave the field — a 4-digit PIN is filled automatically. You can tap
-              New PIN to roll another. The PIN is shown below each cashier for your reference (stored
-              on this device only).
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          <section className="card p-6">
+            <h2 className="text-base font-semibold">Cashier PINs</h2>
+            <p className="mt-1 text-sm text-fg-muted">
+              Enter a name, then leave the field — a 4-digit PIN is filled automatically. Tap New PIN
+              to roll another. The PIN is shown below each cashier for your reference (stored on this
+              device only).
             </p>
 
             <form
-              className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+              className="mt-6 grid gap-3 sm:grid-cols-2"
               onSubmit={async (e) => {
                 e.preventDefault()
                 setStaffMsg('')
@@ -699,10 +648,8 @@ export function Admin() {
                 setStaffMsg('Cashier saved.')
               }}
             >
-              <div className="lg:col-span-2">
-                <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-700">
-                  Display name
-                </label>
+              <div className="sm:col-span-2">
+                <label className="label">Display name</label>
                 <input
                   value={newCashierName}
                   onChange={(e) => setNewCashierName(e.target.value)}
@@ -714,37 +661,33 @@ export function Admin() {
                     }
                   }}
                   placeholder="e.g. Mary"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-pink dark:border-slate-300 dark:bg-white dark:text-slate-900"
+                  className="input"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-700">
-                  PIN
-                </label>
+                <label className="label">PIN</label>
                 <input
                   type="password"
                   inputMode="numeric"
                   value={newCashierPin}
                   onChange={(e) => setNewCashierPin(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-pink dark:border-slate-300 dark:bg-white dark:text-slate-900"
+                  className="input"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-700">
-                  Confirm PIN
-                </label>
+                <label className="label">Confirm PIN</label>
                 <input
                   type="password"
                   inputMode="numeric"
                   value={newCashierPin2}
                   onChange={(e) => setNewCashierPin2(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-pink dark:border-slate-300 dark:bg-white dark:text-slate-900"
+                  className="input"
                 />
               </div>
-              <div className="flex flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-4">
+              <div className="flex flex-wrap gap-2 sm:col-span-2">
                 <button
                   type="button"
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-400 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                  className="btn-secondary"
                   onClick={() => {
                     const p = randomPin4()
                     setNewCashierPin(p)
@@ -753,38 +696,31 @@ export function Admin() {
                 >
                   New PIN
                 </button>
-                <button
-                  type="submit"
-                  className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-slate-900"
-                >
+                <button type="submit" className="btn-primary">
                   Add cashier
                 </button>
               </div>
             </form>
-            {staffMsg ? (
-              <p className="mt-3 text-sm text-emerald-700">{staffMsg}</p>
-            ) : null}
+            {staffMsg ? <p className="mt-3 text-sm text-success">{staffMsg}</p> : null}
 
-            <ul className="mt-8 divide-y divide-slate-100 rounded-xl border border-slate-200 dark:divide-slate-400/50 dark:border-slate-400/60 dark:bg-white/40">
+            <ul className="mt-8 divide-y divide-line overflow-hidden rounded-xl border border-line">
               {cashiers.length === 0 ? (
-                <li className="px-4 py-8 text-center text-sm text-slate-500">
-                  No cashiers yet. Add one above.
+                <li>
+                  <EmptyState>No cashiers yet. Add one above.</EmptyState>
                 </li>
               ) : (
                 cashiers.map((c) => (
                   <li key={c.id} className="px-4 py-4">
                     {editPinId === c.id ? (
-                      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-slate-900">{c.name}</p>
-                        </div>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                        <p className="min-w-0 flex-1 font-medium">{c.name}</p>
                         <input
                           type="password"
                           inputMode="numeric"
                           placeholder="New PIN"
                           value={editPin}
                           onChange={(e) => setEditPin(e.target.value)}
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm dark:border-slate-300 dark:text-slate-900"
+                          className="input py-2 sm:w-28"
                         />
                         <input
                           type="password"
@@ -792,11 +728,11 @@ export function Admin() {
                           placeholder="Confirm"
                           value={editPin2}
                           onChange={(e) => setEditPin2(e.target.value)}
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm dark:border-slate-300 dark:text-slate-900"
+                          className="input py-2 sm:w-28"
                         />
                         <button
                           type="button"
-                          className="rounded-lg bg-brand-green px-3 py-2 text-sm font-semibold text-white"
+                          className="btn-primary py-2"
                           onClick={async () => {
                             setStaffMsg('')
                             if (!editPin || editPin !== editPin2) {
@@ -810,11 +746,11 @@ export function Admin() {
                             setStaffMsg('PIN updated.')
                           }}
                         >
-                          Save PIN
+                          Save
                         </button>
                         <button
                           type="button"
-                          className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                          className="btn-ghost py-2"
                           onClick={() => {
                             setEditPinId(null)
                             setEditPin('')
@@ -825,59 +761,54 @@ export function Admin() {
                         </button>
                       </div>
                     ) : (
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="font-semibold text-slate-900 dark:text-slate-900">{c.name}</p>
-                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-600">
-                            PIN reference
-                          </p>
-                          <p className="mt-0.5 font-mono text-lg font-semibold tracking-wider text-slate-900 dark:text-slate-900">
-                            {c.pinPlain ?? '—'}
-                          </p>
-                          {!c.pinPlain ? (
-                            <p className="mt-1 text-[11px] text-slate-400">
-                              Change PIN once to save a reference here.
-                            </p>
-                          ) : null}
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">
+                          {c.name.trim().slice(0, 2).toUpperCase()}
                         </div>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium hover:bg-slate-50"
-                            onClick={() => {
-                              setEditPinId(c.id)
-                              setEditPin('')
-                              setEditPin2('')
-                            }}
-                          >
-                            Change PIN
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded-lg p-2 text-red-600 hover:bg-red-50"
-                            aria-label="Remove"
-                            onClick={() => {
-                              if (confirm(`Remove cashier ${c.name}?`)) removeCashier(c.id)
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium">{c.name}</p>
+                          {c.pinPlain ? (
+                            <p className="font-mono text-sm tracking-widest text-fg-muted">{c.pinPlain}</p>
+                          ) : (
+                            <p className="text-xs text-fg-subtle">Change PIN once to save a reference here.</p>
+                          )}
                         </div>
+                        <button
+                          type="button"
+                          className="btn-secondary px-3 py-2"
+                          onClick={() => {
+                            setEditPinId(c.id)
+                            setEditPin('')
+                            setEditPin2('')
+                          }}
+                        >
+                          Change PIN
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-btn hover:bg-danger/10 hover:text-danger"
+                          aria-label={`Remove ${c.name}`}
+                          onClick={() => {
+                            if (confirm(`Remove cashier ${c.name}?`)) removeCashier(c.id)
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
                     )}
                   </li>
                 ))
               )}
             </ul>
-          </div>
+          </section>
 
-          <div className="rounded-2xl border border-slate-200/90 bg-slate-50/80 p-6 ring-1 ring-slate-100 dark:border-slate-400/40 dark:bg-slate-200/90 dark:ring-slate-400/20">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-900">Administrator account</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Signed in as <span className="font-medium">{adminAccount?.email}</span>
+          <section className="card h-fit p-6">
+            <h2 className="text-base font-semibold">Administrator account</h2>
+            <p className="mt-1 text-sm text-fg-muted">
+              Signed in as <span className="font-medium text-fg">{adminAccount?.email}</span>
             </p>
             <form
-              className="mt-6 max-w-xl space-y-3"
+              className="mt-6 space-y-4"
               onSubmit={async (e) => {
                 e.preventDefault()
                 setAdminAccountMsg('')
@@ -905,112 +836,78 @@ export function Admin() {
               }}
             >
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">
-                  Current password
-                </label>
+                <label className="label">Current password</label>
                 <input
                   type="password"
                   autoComplete="current-password"
                   value={adminCur}
                   onChange={(e) => setAdminCur(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-pink"
+                  className="input"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">
-                  New email (optional)
-                </label>
+                <label className="label">New email (optional)</label>
                 <input
                   type="email"
                   value={adminNewEmail}
                   onChange={(e) => setAdminNewEmail(e.target.value)}
                   placeholder="Leave blank to keep current"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-pink"
+                  className="input"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">
-                  New password (optional)
-                </label>
+                <label className="label">New password (optional)</label>
                 <input
                   type="password"
                   autoComplete="new-password"
                   value={adminNewPw}
                   onChange={(e) => setAdminNewPw(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-pink"
+                  className="input"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">
-                  Confirm new password
-                </label>
+                <label className="label">Confirm new password</label>
                 <input
                   type="password"
                   autoComplete="new-password"
                   value={adminNewPw2}
                   onChange={(e) => setAdminNewPw2(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-pink"
+                  className="input"
                 />
               </div>
-              <button
-                type="submit"
-                className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
-              >
+              <button type="submit" className="btn-primary">
                 Update admin account
               </button>
             </form>
-            {adminAccountMsg ? (
-              <p className="mt-3 text-sm text-emerald-700">{adminAccountMsg}</p>
-            ) : null}
-          </div>
+            {adminAccountMsg ? <p className="mt-3 text-sm text-fg-muted">{adminAccountMsg}</p> : null}
+          </section>
         </div>
       ) : null}
 
       {tab === 'products' ? (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                setAddProductMsg('')
-                setAddProductOpen((o) => !o)
-              }}
-              className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
-            >
-              <Plus className="h-4 w-4" />
-              Add product
-            </button>
-          </div>
-
           {addProductOpen ? (
-            <form
-              onSubmit={onAddProduct}
-              className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm ring-1 ring-slate-100 dark:border-slate-400/40 dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-400/20"
-            >
-              <p className="text-sm font-bold text-slate-900">New product</p>
+            <form onSubmit={onAddProduct} className="card p-6">
+              <h2 className="text-base font-semibold">New product</h2>
               <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="sm:col-span-2">
-                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-700">
-                    Name
-                  </label>
+                  <label className="label">Name</label>
                   <input
                     value={newProductName}
                     onChange={(e) => setNewProductName(e.target.value)}
                     placeholder="e.g. iPhone 15 128GB · Black"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-pink dark:border-slate-300 dark:text-slate-900"
+                    className="input"
                     autoComplete="off"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-700">
-                    Category
-                  </label>
+                  <label className="label">Category</label>
                   <input
                     value={newProductCategory}
                     onChange={(e) => setNewProductCategory(e.target.value)}
                     placeholder="e.g. iPhone 15"
                     list="admin-product-categories"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-pink dark:border-slate-300 dark:text-slate-900"
+                    className="input"
                     autoComplete="off"
                   />
                   <datalist id="admin-product-categories">
@@ -1020,35 +917,28 @@ export function Admin() {
                   </datalist>
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-700">
-                    Price (KSh)
-                  </label>
+                  <label className="label">Price (KSh)</label>
                   <input
                     value={newProductPrice}
                     onChange={(e) => setNewProductPrice(e.target.value)}
                     placeholder="0"
                     inputMode="numeric"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-mono text-sm outline-none focus:border-brand-pink dark:border-slate-300 dark:text-slate-900"
+                    className="input font-mono"
                     autoComplete="off"
                   />
                 </div>
-                <div className="flex flex-col justify-end">
-                  <label className="mb-2 flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-800">
-                    <input
-                      type="checkbox"
-                      checked={newProductActive}
-                      onChange={(e) => setNewProductActive(e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-300 text-brand-pink focus:ring-brand-pink"
-                    />
-                    On shelf (active)
-                  </label>
-                </div>
               </div>
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <button
-                  type="submit"
-                  className="rounded-xl bg-brand-green px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:brightness-105"
-                >
+              <label className="mt-4 inline-flex cursor-pointer items-center gap-2 text-sm text-fg-muted">
+                <input
+                  type="checkbox"
+                  checked={newProductActive}
+                  onChange={(e) => setNewProductActive(e.target.checked)}
+                  className="h-4 w-4 accent-[rgb(var(--accent))]"
+                />
+                On shelf (active)
+              </label>
+              <div className="mt-5 flex flex-wrap items-center gap-2">
+                <button type="submit" className="btn-primary">
                   Save product
                 </button>
                 <button
@@ -1057,62 +947,53 @@ export function Admin() {
                     setAddProductOpen(false)
                     setAddProductMsg('')
                   }}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-400 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                  className="btn-ghost"
                 >
                   Cancel
                 </button>
               </div>
-              {addProductMsg ? (
-                <p className="mt-3 text-sm text-red-700 dark:text-red-900/90">{addProductMsg}</p>
-              ) : null}
+              {addProductMsg ? <p className="mt-3 text-sm text-danger">{addProductMsg}</p> : null}
             </form>
           ) : null}
 
           {addProductMsg && !addProductOpen ? (
-            <p className="text-sm text-emerald-700 dark:text-emerald-800">{addProductMsg}</p>
+            <p className="text-sm text-success">{addProductMsg}</p>
           ) : null}
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-100 dark:border-slate-400/40 dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-400/20">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500 dark:bg-slate-200/90 dark:text-slate-700">
+          <div className="card overflow-x-auto">
+            <table className="w-full min-w-[560px] text-left text-sm">
+              <thead className="table-head">
                 <tr>
-                  <th className="px-4 py-3">Product</th>
-                  <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3">Price (KSh)</th>
-                  <th className="px-4 py-3">Active</th>
+                  <th className="px-5 py-3">Product</th>
+                  <th className="px-5 py-3">Category</th>
+                  <th className="px-5 py-3">Price (KSh)</th>
+                  <th className="px-5 py-3">On shelf</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-400/50">
+              <tbody className="divide-y divide-line">
                 {products.map((p) => (
                   <tr
                     key={p.id}
-                    className={
-                      !p.active
-                        ? 'bg-slate-50/80 opacity-70 dark:bg-slate-200/40'
-                        : 'hover:bg-slate-50/80 dark:hover:bg-slate-200/80'
-                    }
+                    className={!p.active ? 'opacity-55' : 'transition hover:bg-subtle/50'}
                   >
-                    <td className="px-4 py-3 font-medium text-slate-900">{p.name}</td>
-                    <td className="px-4 py-3 text-slate-600">{p.category}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-3 font-medium">{p.name}</td>
+                    <td className="px-5 py-3 text-fg-muted">{p.category}</td>
+                    <td className="px-5 py-3">
                       <input
                         type="text"
                         inputMode="numeric"
                         value={String(p.price)}
                         onChange={(e) => onProductPriceChange(p.id, e.target.value)}
-                        className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1.5 font-mono text-sm outline-none focus:border-brand-pink dark:border-slate-300 dark:text-slate-900"
+                        aria-label={`Price for ${p.name}`}
+                        className="input w-32 px-3 py-1.5 font-mono"
                       />
                     </td>
-                    <td className="px-4 py-3">
-                      <label className="inline-flex cursor-pointer items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={p.active}
-                          onChange={(e) => setProductActive(p.id, e.target.checked)}
-                          className="h-4 w-4 rounded border-slate-300 text-brand-pink focus:ring-brand-pink"
-                        />
-                        <span className="text-slate-600">On shelf</span>
-                      </label>
+                    <td className="px-5 py-3">
+                      <Switch
+                        checked={p.active}
+                        onChange={(v) => setProductActive(p.id, v)}
+                        label={`${p.name} on shelf`}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -1123,6 +1004,121 @@ export function Admin() {
       ) : null}
     </div>
   )
+}
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  tone = 'accent',
+}: {
+  icon: LucideIcon
+  label: string
+  value: string
+  hint: string
+  tone?: 'accent' | 'success'
+}) {
+  return (
+    <div className="card p-5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm text-fg-muted">{label}</p>
+        <div
+          className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+            tone === 'success' ? 'bg-success/10 text-success' : 'bg-accent/10 text-accent'
+          }`}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+      <p className="mt-3 truncate text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
+      <p className="mt-1 text-xs text-fg-subtle">{hint}</p>
+    </div>
+  )
+}
+
+function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T
+  onChange: (v: T) => void
+  options: [T, string][]
+}) {
+  return (
+    <div className="inline-flex rounded-xl border border-line bg-subtle p-1">
+      {options.map(([k, label]) => (
+        <button
+          key={k}
+          type="button"
+          onClick={() => onChange(k)}
+          aria-pressed={value === k}
+          className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+            value === k ? 'bg-surface text-fg shadow-card' : 'text-fg-muted hover:text-fg'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function SearchInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder: string
+}) {
+  return (
+    <div className="relative">
+      <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        className="input pl-10"
+      />
+    </div>
+  )
+}
+
+function Switch({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  label: string
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${
+        checked ? 'bg-accent' : 'bg-line'
+      }`}
+    >
+      <span
+        className={`inline-block h-5 w-5 rounded-full bg-white shadow-card transition ${
+          checked ? 'translate-x-[22px]' : 'translate-x-0.5'
+        }`}
+      />
+    </button>
+  )
+}
+
+function EmptyState({ children }: { children: ReactNode }) {
+  return <p className="px-4 py-12 text-center text-sm text-fg-muted">{children}</p>
 }
 
 function OrderRow({
@@ -1136,68 +1132,57 @@ function OrderRow({
   onToggle: () => void
   onVoid: () => void
 }) {
-  const status =
-    order.status === 'void' ? (
-      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
-        Void
-      </span>
-    ) : (
-      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-        Paid
-      </span>
-    )
-
   const cn = order.customerName ?? '—'
   const cid = order.customerId ?? '—'
 
   return (
-    <div className="bg-white dark:bg-slate-300 dark:text-slate-900">
+    <div>
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center gap-3 px-4 py-4 text-left hover:bg-slate-50 dark:hover:bg-slate-200/80"
+        className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-subtle/60 sm:px-5"
       >
-        {open ? (
-          <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
-        ) : (
-          <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-        )}
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-sm font-semibold text-slate-900">
-            {orderRefFromId(order.id)}
-          </p>
-          <p className="text-xs text-slate-600">
+          <div className="flex items-center gap-2">
+            <p className="font-mono text-sm font-semibold">{orderRefFromId(order.id)}</p>
+            {order.status === 'void' ? (
+              <span className="badge-danger">Void</span>
+            ) : (
+              <span className="badge-success">Paid</span>
+            )}
+          </div>
+          <p className="mt-0.5 truncate text-xs text-fg-muted">
             {cn} · ID {cid}
           </p>
-          <p className="text-xs text-slate-500">
+          <p className="truncate text-xs text-fg-subtle">
             {new Date(order.createdAt).toLocaleString('en-KE')} · {order.staffLabel} ·{' '}
             <span className="capitalize">{order.paymentMethod}</span>
           </p>
         </div>
-        <div className="text-right">
-          <p className="font-bold text-slate-900">{formatKES(order.total)}</p>
-          {status}
-        </div>
+        <p className="font-semibold tabular-nums">{formatKES(order.total)}</p>
+        {open ? (
+          <ChevronDown className="h-4 w-4 shrink-0 text-fg-subtle" />
+        ) : (
+          <ChevronRight className="h-4 w-4 shrink-0 text-fg-subtle" />
+        )}
       </button>
       {open ? (
-        <div className="border-t border-slate-100 bg-slate-50/80 px-4 py-4 dark:border-slate-400/50 dark:bg-slate-200/50">
-          <ul className="space-y-3 text-sm">
+        <div className="border-t border-line bg-subtle/40 px-4 py-4 sm:px-5">
+          <ul className="space-y-2 text-sm">
             {order.lines.map((l, i) => (
-              <li key={i} className="rounded-xl border border-slate-200 bg-white p-3 text-slate-700 dark:border-slate-300">
+              <li key={i} className="rounded-xl border border-line bg-surface p-3">
                 <div className="flex justify-between gap-2 font-medium">
                   <span>
                     {l.qty}× {l.name}
                   </span>
-                  <span>{formatKES(l.unitPrice * l.qty)}</span>
+                  <span className="tabular-nums">{formatKES(l.unitPrice * l.qty)}</span>
                 </div>
-                {l.imei ? (
-                  <p className="mt-1 font-mono text-xs text-slate-500">IMEI {l.imei}</p>
-                ) : null}
+                {l.imei ? <p className="mt-1 font-mono text-xs text-fg-muted">IMEI {l.imei}</p> : null}
                 {l.serialNumber ? (
-                  <p className="font-mono text-xs text-slate-500">S/N {l.serialNumber}</p>
+                  <p className="font-mono text-xs text-fg-muted">S/N {l.serialNumber}</p>
                 ) : null}
                 {l.warrantyMonths ? (
-                  <p className="mt-1 text-xs text-emerald-700">
+                  <p className="mt-1 text-xs text-success">
                     Warranty {l.warrantyMonths} mo
                     {l.warrantyExpiresAt
                       ? ` · expires ${new Date(l.warrantyExpiresAt).toLocaleDateString('en-KE')}`
@@ -1207,9 +1192,7 @@ function OrderRow({
               </li>
             ))}
           </ul>
-          {order.note ? (
-            <p className="mt-3 text-xs text-slate-500">Note: {order.note}</p>
-          ) : null}
+          {order.note ? <p className="mt-3 text-xs text-fg-muted">Note: {order.note}</p> : null}
           {order.status === 'completed' ? (
             <button
               type="button"
@@ -1217,7 +1200,7 @@ function OrderRow({
                 e.stopPropagation()
                 if (confirm('Void this order? This cannot be undone.')) onVoid()
               }}
-              className="mt-4 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
+              className="btn-danger mt-4 px-3 py-2 text-xs"
             >
               Void order
             </button>

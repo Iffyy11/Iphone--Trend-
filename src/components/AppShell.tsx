@@ -1,99 +1,170 @@
-import { LogOut } from 'lucide-react'
+import { LogOut, Menu, ScanLine, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { SHOP } from '../brand'
+import { ADMIN_SECTIONS, parseAdminTab } from '../navigation'
+import { usePosStore } from '../store/posStore'
 import { LogoMark } from './LogoMark'
 import { ThemeToggle } from './ThemeToggle'
-import type { UserRole } from '../types'
-import { usePosStore } from '../store/posStore'
 
-const nav: { to: string; label: string; roles: UserRole[] }[] = [
-  { to: '/cashier', label: 'Cashier', roles: ['cashier', 'admin'] },
-  { to: '/admin', label: 'Admin', roles: ['admin'] },
-]
+function NavItem({
+  to,
+  active,
+  icon: Icon,
+  children,
+}: {
+  to: string
+  active: boolean
+  icon: typeof ScanLine
+  children: string
+}) {
+  return (
+    <Link
+      to={to}
+      aria-current={active ? 'page' : undefined}
+      className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+        active
+          ? 'bg-accent/10 text-accent'
+          : 'text-fg-muted hover:bg-subtle hover:text-fg'
+      }`}
+    >
+      <Icon
+        className={`h-[18px] w-[18px] shrink-0 ${active ? 'text-accent' : 'text-fg-subtle group-hover:text-fg-muted'}`}
+        aria-hidden
+      />
+      {children}
+    </Link>
+  )
+}
 
-const shellPad =
-  'px-[max(1rem,env(safe-area-inset-left,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] pt-[max(0.75rem,env(safe-area-inset-top,0px))] pb-3'
-
-export function AppShell() {
+function SidebarContent() {
   const location = useLocation()
   const session = usePosStore((s) => s.session)
   const logout = usePosStore((s) => s.logout)
-  const role = session.role
+  const isAdmin = session.role === 'admin'
+  const onAdmin = location.pathname.startsWith('/admin')
+  const tab = parseAdminTab(new URLSearchParams(location.search).get('tab'))
+  const initials = (session.staffName ?? '?').trim().slice(0, 2).toUpperCase()
 
   return (
-    <div className="flex min-h-dvh min-h-[100dvh] flex-col bg-gradient-to-b from-slate-50 to-white dark:from-[#0f172a] dark:to-[#0f172a]">
-      <header className="no-print sticky top-0 z-20 border-b border-slate-200/80 bg-white/85 backdrop-blur-lg dark:border-slate-400/40 dark:bg-slate-300/95">
-        <div
-          className={`mx-auto flex max-w-7xl flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4 ${shellPad}`}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <Link
-              to={role === 'admin' ? '/admin' : '/cashier'}
-              className="flex min-w-0 max-w-[calc(100%-8rem)] items-center gap-2 sm:max-w-none sm:gap-3"
-            >
-              <LogoMark size="sm" />
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-900">
-                  {SHOP.displayName}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-600">POS · KSh</p>
-              </div>
-            </Link>
-            <div className="flex shrink-0 items-center gap-2 md:hidden">
-              <ThemeToggle />
-              <button
-                type="button"
-                onClick={() => logout()}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-400 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
-                aria-label="Sign out"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-
-          <nav className="flex w-full snap-x snap-mandatory gap-1 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] md:min-w-0 md:flex-1 md:justify-center md:overflow-visible md:pb-0 [&::-webkit-scrollbar]:hidden">
-            {nav
-              .filter((n) => role && n.roles.includes(role))
-              .map((n) => (
-                <Link
-                  key={n.to}
-                  to={n.to}
-                  className={`inline-flex shrink-0 snap-start items-center justify-center rounded-xl px-4 py-3 text-sm font-medium transition ${
-                    location.pathname.startsWith(n.to)
-                      ? 'bg-slate-900 text-white shadow-sm dark:bg-slate-900 dark:text-white'
-                      : 'text-slate-600 hover:bg-slate-100 dark:text-slate-700 dark:hover:bg-slate-200'
-                  }`}
-                >
-                  {n.label}
-                </Link>
-              ))}
-          </nav>
-
-          <div className="hidden items-center gap-2 sm:gap-3 md:flex">
-            <ThemeToggle />
-            <div className="hidden text-right sm:block">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                {role}
-              </p>
-              <p className="text-sm font-medium text-slate-800 dark:text-slate-900">
-                {session.staffName}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => logout()}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-400 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
-            >
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Sign out</span>
-            </button>
-          </div>
+    <div className="flex h-full flex-col">
+      <Link
+        to={isAdmin ? '/admin' : '/cashier'}
+        className="flex items-center gap-3 px-5 pb-6 pt-6"
+      >
+        <LogoMark size="sm" />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold tracking-tight text-fg">{SHOP.displayName}</p>
+          <p className="text-xs text-fg-subtle">Point of sale · KSh</p>
         </div>
+      </Link>
+
+      <nav className="flex-1 space-y-6 overflow-y-auto px-3">
+        <div className="space-y-1">
+          <p className="eyebrow px-3 pb-1">Sell</p>
+          <NavItem to="/cashier" active={location.pathname.startsWith('/cashier')} icon={ScanLine}>
+            Point of sale
+          </NavItem>
+        </div>
+
+        {isAdmin ? (
+          <div className="space-y-1">
+            <p className="eyebrow px-3 pb-1">Manage</p>
+            {ADMIN_SECTIONS.map((s) => (
+              <NavItem
+                key={s.key}
+                to={`/admin?tab=${s.key}`}
+                active={onAdmin && tab === s.key}
+                icon={s.icon}
+              >
+                {s.label}
+              </NavItem>
+            ))}
+          </div>
+        ) : null}
+      </nav>
+
+      <div className="space-y-3 border-t border-line p-3">
+        <ThemeToggle className="w-full" />
+        <div className="flex items-center gap-3 rounded-xl px-2 py-1.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">
+            {initials}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-fg">{session.staffName}</p>
+            <p className="text-xs capitalize text-fg-subtle">{session.role}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => logout()}
+            className="icon-btn"
+            aria-label="Sign out"
+            title="Sign out"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function AppShell() {
+  const location = useLocation()
+  const [drawerOpen, setDrawerOpen] = useState(false)
+
+  useEffect(() => {
+    setDrawerOpen(false)
+  }, [location.pathname, location.search])
+
+  return (
+    <div className="min-h-dvh bg-canvas">
+      {/* Desktop sidebar */}
+      <aside className="no-print fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-line bg-surface lg:block">
+        <SidebarContent />
+      </aside>
+
+      {/* Mobile top bar */}
+      <header className="no-print sticky top-0 z-20 flex items-center gap-3 border-b border-line bg-surface/85 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] backdrop-blur-lg lg:hidden">
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          className="icon-btn"
+          aria-label="Open menu"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <LogoMark size="xs" />
+        <p className="truncate text-sm font-semibold tracking-tight">{SHOP.displayName}</p>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-[max(1rem,env(safe-area-inset-left,0px))] py-6 pr-[max(1rem,env(safe-area-inset-right,0px))] pb-[max(1.5rem,env(safe-area-inset-bottom,0px))]">
-        <Outlet />
+      {/* Mobile drawer */}
+      {drawerOpen ? (
+        <div className="no-print fixed inset-0 z-40 lg:hidden">
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setDrawerOpen(false)}
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+          />
+          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-surface pt-[env(safe-area-inset-top,0px)] shadow-pop">
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(false)}
+              className="icon-btn absolute right-3 top-[max(1.25rem,env(safe-area-inset-top,0px))]"
+              aria-label="Close menu"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <SidebarContent />
+          </aside>
+        </div>
+      ) : null}
+
+      <main className="lg:pl-64">
+        <div className="mx-auto w-full max-w-7xl px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] sm:px-6 lg:px-10 lg:py-8">
+          <Outlet />
+        </div>
       </main>
     </div>
   )

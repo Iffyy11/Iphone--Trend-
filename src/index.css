@@ -3,17 +3,46 @@
 @tailwind utilities;
 
 @layer base {
+  /* Design tokens — RGB triplets so Tailwind opacity modifiers work (bg-accent/10). */
+  :root {
+    --canvas: 246 247 249;
+    --surface: 255 255 255;
+    --subtle: 241 243 246;
+    --line: 228 231 236;
+    --fg: 15 23 42;
+    --fg-muted: 71 85 105;
+    --fg-subtle: 148 163 184;
+    --accent: 37 99 235;
+    --accent-hover: 29 78 216;
+    --success: 22 163 74;
+    --warning: 217 119 6;
+    --danger: 220 38 38;
+    color-scheme: light;
+  }
+  :root.dark {
+    --canvas: 10 12 16;
+    --surface: 20 23 30;
+    --subtle: 28 32 41;
+    --line: 39 44 56;
+    --fg: 241 245 249;
+    --fg-muted: 161 170 186;
+    --fg-subtle: 107 116 133;
+    --accent: 59 130 246;
+    --accent-hover: 96 165 250;
+    --success: 34 197 94;
+    --warning: 245 158 11;
+    --danger: 248 113 113;
+    color-scheme: dark;
+  }
+
   html {
-    @apply antialiased text-ink bg-white transition-colors;
+    @apply bg-canvas text-fg antialiased;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
-  }
-  /* Navy page + light slate “cards” (see dark UI reference) */
-  html.dark {
-    @apply bg-[#0f172a] text-slate-200;
+    font-feature-settings: 'cv11', 'ss01';
   }
   body {
-    @apply m-0 min-h-dvh overflow-x-clip;
+    @apply m-0 min-h-dvh overflow-x-clip bg-canvas;
   }
   #root {
     @apply min-h-dvh;
@@ -25,6 +54,67 @@
   select,
   textarea {
     touch-action: manipulation;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-line bg-surface shadow-card;
+  }
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-fg-subtle;
+  }
+  .label {
+    @apply mb-1.5 block text-xs font-medium text-fg-muted;
+  }
+  .input {
+    @apply w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm text-fg outline-none transition placeholder:text-fg-subtle focus:border-accent focus:ring-4 focus:ring-accent/15;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/25 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-white shadow-sm hover:bg-accent-hover;
+  }
+  .btn-secondary {
+    @apply btn border border-line bg-surface text-fg shadow-sm hover:bg-subtle;
+  }
+  .btn-ghost {
+    @apply btn text-fg-muted hover:bg-subtle hover:text-fg;
+  }
+  .btn-danger {
+    @apply btn border border-danger/30 bg-surface text-danger hover:bg-danger/10;
+  }
+  .icon-btn {
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-lg text-fg-muted transition hover:bg-subtle hover:text-fg;
+  }
+  .chip {
+    @apply inline-flex shrink-0 items-center rounded-full border border-line bg-surface px-3.5 py-1.5 text-xs font-semibold text-fg-muted transition hover:text-fg;
+  }
+  .chip-active {
+    @apply border-accent bg-accent text-white hover:text-white;
+  }
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+  .badge-success {
+    @apply badge bg-success/10 text-success;
+  }
+  .badge-danger {
+    @apply badge bg-danger/10 text-danger;
+  }
+  .badge-neutral {
+    @apply badge bg-subtle text-fg-muted;
+  }
+  .table-head {
+    @apply border-b border-line bg-subtle/60 text-[11px] font-semibold uppercase tracking-wider text-fg-subtle;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 }
 
@@ -40,7 +130,7 @@
   }
   /* Receipt: crisp type, keep logo tint, avoid awkward breaks */
   .receipt-print {
-    font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
