@@ -115,16 +115,20 @@ export function ReceiptPrint({ order }: { order: Order }) {
 
         {/* Total */}
         <section className="mt-5 border-t-2 border-slate-900 pt-3">
-          {order.discount ? (
+          {order.discount || order.tradeInValue ? (
             <div className="mb-2 space-y-1 font-sans text-[11px] text-slate-600">
               <div className="flex justify-between gap-2">
                 <span>Subtotal</span>
-                <span className="font-mono tabular-nums">{formatKES(order.subtotal ?? order.total + order.discount)}</span>
+                <span className="font-mono tabular-nums">{formatKES(order.subtotal ?? order.total + (order.discount ?? 0) + (order.tradeInValue ?? 0))}</span>
               </div>
-              <div className="flex justify-between gap-2">
+              {order.discount ? <div className="flex justify-between gap-2">
                 <span>Discount</span>
                 <span className="font-mono tabular-nums">− {formatKES(order.discount)}</span>
-              </div>
+              </div> : null}
+              {order.tradeInValue ? <div className="flex justify-between gap-2">
+                <span>Trade-in · {order.tradeInDevice}</span>
+                <span className="font-mono tabular-nums">− {formatKES(order.tradeInValue)}</span>
+              </div> : null}
             </div>
           ) : null}
           <div className="flex items-baseline justify-between gap-2 font-sans">

@@ -5,10 +5,11 @@ import {
   ShieldCheck,
   ShoppingCart,
   Users,
+  WalletCards,
   type LucideIcon,
 } from 'lucide-react'
 
-export type AdminTab = 'overview' | 'orders' | 'customers' | 'warranties' | 'products' | 'staff'
+export type AdminTab = 'overview' | 'orders' | 'customers' | 'warranties' | 'products' | 'staff' | 'finance'
 
 export const ADMIN_SECTIONS: {
   key: AdminTab
@@ -22,6 +23,7 @@ export const ADMIN_SECTIONS: {
   { key: 'warranties', label: 'Warranties', description: 'Devices under cover and expiry dates', icon: ShieldCheck },
   { key: 'products', label: 'Products', description: 'Catalogue, prices and shelf status', icon: Package },
   { key: 'staff', label: 'Staff', description: 'Cashier PINs and the admin account', icon: KeyRound },
+  { key: 'finance', label: 'Finance', description: 'Supplier balances, expenses, invoices, trade-ins and VAT', icon: WalletCards },
 ]
 
 export function parseAdminTab(raw: string | null): AdminTab {

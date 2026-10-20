@@ -64,6 +64,11 @@ export function Cashier() {
   const [discountOpen, setDiscountOpen] = useState(false)
   const [discountMode, setDiscountMode] = useState<'amount' | 'percent'>('amount')
   const [discountInput, setDiscountInput] = useState('')
+  const [tradeInOpen, setTradeInOpen] = useState(false)
+  const [tradeInDevice, setTradeInDevice] = useState('')
+  const [tradeInImei, setTradeInImei] = useState('')
+  const [tradeInCondition, setTradeInCondition] = useState('Good')
+  const [tradeInInput, setTradeInInput] = useState('')
 
   const categories = useMemo(() => {
     const set = new Set(products.filter((p) => p.active).map((p) => p.category))
@@ -199,12 +204,30 @@ export function Cashier() {
       : discountMode === 'percent'
         ? Math.round((subtotal * discountValue) / 100)
         : Math.round(discountValue)
-  const totalDue = subtotal - discountAmount
+  const tradeInValue = tradeInOpen ? Number(tradeInInput.replace(/,/g, '').trim() || 0) : 0
+  const tradeInError = tradeInOpen && (
+    !tradeInDevice.trim()
+      ? 'Enter the trade-in device model.'
+      : !Number.isFinite(tradeInValue) || tradeInValue <= 0
+        ? 'Enter a trade-in value greater than zero.'
+        : tradeInValue > subtotal - discountAmount
+          ? 'Trade-in value cannot exceed the remaining sale amount.'
+          : ''
+  )
+  const totalDue = subtotal - discountAmount - (tradeInError ? 0 : tradeInValue)
 
   function resetDiscount() {
     setDiscountOpen(false)
     setDiscountMode('amount')
     setDiscountInput('')
+  }
+
+  function resetTradeIn() {
+    setTradeInOpen(false)
+    setTradeInDevice('')
+    setTradeInImei('')
+    setTradeInCondition('Good')
+    setTradeInInput('')
   }
 
   function buildLines(): OrderLine[] {
@@ -216,6 +239,7 @@ export function Cashier() {
           name: row.product.name,
           qty: row.qty,
           unitPrice: row.product.price,
+          unitCost: row.product.costPrice,
           warrantyMonths: 0,
         })
         continue
@@ -226,6 +250,7 @@ export function Cashier() {
           name: row.product.name,
           qty: 1,
           unitPrice: row.product.price,
+          unitCost: row.product.costPrice,
           imei: d.imei.trim(),
           serialNumber: d.serial.trim(),
           warrantyMonths: d.warrantyMonths,
@@ -260,6 +285,10 @@ export function Cashier() {
       setCheckoutError(discountError)
       return
     }
+    if (tradeInError) {
+      setCheckoutError(tradeInError)
+      return
+    }
     const lines = buildLines()
     const order = addOrder({
       lines,
@@ -268,6 +297,15 @@ export function Cashier() {
       customerId: customerId.trim(),
       note: note.trim() || undefined,
       discount: discountAmount,
+      tradeIn: tradeInOpen
+        ? {
+            customer: customerName.trim(),
+            device: tradeInDevice.trim(),
+            imei: tradeInImei.trim() || undefined,
+            condition: tradeInCondition,
+            value: Math.round(tradeInValue),
+          }
+        : undefined,
     })
     if (order) {
       setLastOrder(order)
@@ -278,6 +316,7 @@ export function Cashier() {
       setCustomerName('')
       setCustomerId('')
       resetDiscount()
+      resetTradeIn()
     }
   }
 
@@ -577,6 +616,71 @@ export function Cashier() {
             </div>
           </dl>
         ) : null}
+        {tradeInOpen ? (
+          <div className="space-y-2 rounded-xl border border-accent/20 bg-accent/5 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold">Trade-in credit</p>
+              <button type="button" onClick={resetTradeIn} className="text-xs font-medium text-fg-muted hover:text-fg">
+                Remove
+              </button>
+            </div>
+            <input
+              value={tradeInDevice}
+              onChange={(e) => setTradeInDevice(e.target.value)}
+              placeholder="Device model"
+              aria-label="Trade-in device model"
+              className="input"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                value={tradeInImei}
+                onChange={(e) => setTradeInImei(e.target.value)}
+                placeholder="IMEI (optional)"
+                aria-label="Trade-in device IMEI"
+                className="input font-mono"
+              />
+              <select
+                value={tradeInCondition}
+                onChange={(e) => setTradeInCondition(e.target.value)}
+                aria-label="Trade-in device condition"
+                className="input"
+              >
+                {['Excellent', 'Good', 'Fair', 'Poor', 'For parts'].map((condition) => (
+                  <option key={condition}>{condition}</option>
+                ))}
+              </select>
+            </div>
+            <input
+              value={tradeInInput}
+              onChange={(e) => setTradeInInput(e.target.value)}
+              inputMode="numeric"
+              placeholder="Agreed value in KSh"
+              aria-label="Trade-in value in KSh"
+              className="input tabular-nums"
+            />
+            {tradeInError ? <p className="text-xs text-danger">{tradeInError}</p> : null}
+            {!tradeInError ? (
+              <p className="text-xs text-fg-muted">This value will be deducted from the sale and saved to the trade-in register.</p>
+            ) : null}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setTradeInOpen(true)}
+            disabled={cart.length === 0}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:text-accent-hover disabled:cursor-not-allowed disabled:text-fg-subtle"
+          >
+            <Tag className="h-4 w-4" /> Add trade-in
+          </button>
+        )}
+        {tradeInOpen && tradeInValue > 0 && !tradeInError ? (
+          <dl className="text-sm">
+            <div className="flex justify-between text-success">
+              <dt>Trade-in credit</dt>
+              <dd className="tabular-nums">− {formatKES(tradeInValue)}</dd>
+            </div>
+          </dl>
+        ) : null}
         <div className="grid grid-cols-4 gap-1 rounded-xl border border-line bg-subtle p-1">
           {(
             [
@@ -820,18 +924,22 @@ export function Cashier() {
                   </li>
                 ))}
               </ul>
-              {lastOrder.discount ? (
+              {lastOrder.discount || lastOrder.tradeInValue ? (
                 <dl className="mt-4 space-y-1 text-sm">
                   <div className="flex justify-between text-fg-muted">
                     <dt>Subtotal</dt>
                     <dd className="tabular-nums">
-                      {formatKES(lastOrder.subtotal ?? lastOrder.total + lastOrder.discount)}
+                      {formatKES(lastOrder.subtotal ?? lastOrder.total + (lastOrder.discount ?? 0) + (lastOrder.tradeInValue ?? 0))}
                     </dd>
                   </div>
-                  <div className="flex justify-between text-success">
+                  {lastOrder.discount ? <div className="flex justify-between text-success">
                     <dt>Discount</dt>
                     <dd className="tabular-nums">− {formatKES(lastOrder.discount)}</dd>
-                  </div>
+                  </div> : null}
+                  {lastOrder.tradeInValue ? <div className="flex justify-between text-success">
+                    <dt>Trade-in credit · {lastOrder.tradeInDevice}</dt>
+                    <dd className="tabular-nums">− {formatKES(lastOrder.tradeInValue)}</dd>
+                  </div> : null}
                 </dl>
               ) : null}
               <div className="mt-4 flex items-baseline justify-between">

@@ -18,6 +18,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 're
 import { useSearchParams } from 'react-router-dom'
 import { SHOP } from '../brand'
 import { PageHeader } from '../components/PageHeader'
+import { Finance } from './Finance'
 import { summarizeCustomers } from '../lib/customers'
 import {
   isOrderInRange,
@@ -61,6 +62,7 @@ export function Admin() {
   const adminAccount = usePosStore((s) => s.adminAccount)
   const voidOrder = usePosStore((s) => s.voidOrder)
   const updateProductPrice = usePosStore((s) => s.updateProductPrice)
+  const updateProductCostPrice = usePosStore((s) => s.updateProductCostPrice)
   const setProductActive = usePosStore((s) => s.setProductActive)
   const upsertProduct = usePosStore((s) => s.upsertProduct)
   const addCashier = usePosStore((s) => s.addCashier)
@@ -97,6 +99,7 @@ export function Admin() {
   const [newProductName, setNewProductName] = useState('')
   const [newProductCategory, setNewProductCategory] = useState('')
   const [newProductPrice, setNewProductPrice] = useState('')
+  const [newProductCost, setNewProductCost] = useState('')
   const [newProductActive, setNewProductActive] = useState(true)
   const [addProductMsg, setAddProductMsg] = useState('')
 
@@ -244,17 +247,26 @@ export function Admin() {
       setAddProductMsg('Enter a valid price (KSh).')
       return
     }
+    const costPrice = newProductCost.trim()
+      ? Number(String(newProductCost).replace(/,/g, ''))
+      : undefined
+    if (costPrice !== undefined && (!Number.isFinite(costPrice) || costPrice < 0)) {
+      setAddProductMsg('Enter a valid purchase cost (KSh).')
+      return
+    }
     const next: Product = {
       id: newProductId(),
       name,
       category,
       price: Math.round(price),
+      ...(costPrice === undefined ? {} : { costPrice: Math.round(costPrice) }),
       active: newProductActive,
     }
     upsertProduct(next)
     setNewProductName('')
     setNewProductCategory('')
     setNewProductPrice('')
+    setNewProductCost('')
     setNewProductActive(true)
     setAddProductOpen(false)
     setAddProductMsg('Product added.')
@@ -889,7 +901,7 @@ export function Admin() {
           {addProductOpen ? (
             <form onSubmit={onAddProduct} className="card p-6">
               <h2 className="text-base font-semibold">New product</h2>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                 <div className="sm:col-span-2">
                   <label className="label">Name</label>
                   <input
@@ -922,6 +934,17 @@ export function Admin() {
                     value={newProductPrice}
                     onChange={(e) => setNewProductPrice(e.target.value)}
                     placeholder="0"
+                    inputMode="numeric"
+                    className="input font-mono"
+                    autoComplete="off"
+                  />
+                </div>
+                <div>
+                  <label className="label">Purchase cost (KSh)</label>
+                  <input
+                    value={newProductCost}
+                    onChange={(e) => setNewProductCost(e.target.value)}
+                    placeholder="Optional"
                     inputMode="numeric"
                     className="input font-mono"
                     autoComplete="off"
@@ -961,12 +984,13 @@ export function Admin() {
           ) : null}
 
           <div className="card overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-sm">
+            <table className="w-full min-w-[680px] text-left text-sm">
               <thead className="table-head">
                 <tr>
                   <th className="px-5 py-3">Product</th>
                   <th className="px-5 py-3">Category</th>
                   <th className="px-5 py-3">Price (KSh)</th>
+                  <th className="px-5 py-3">Purchase cost (KSh)</th>
                   <th className="px-5 py-3">On shelf</th>
                 </tr>
               </thead>
@@ -989,6 +1013,27 @@ export function Admin() {
                       />
                     </td>
                     <td className="px-5 py-3">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={p.costPrice === undefined ? '' : String(p.costPrice)}
+                        onChange={(e) => {
+                          const cleaned = e.target.value.replace(/,/g, '').trim()
+                          if (!cleaned) {
+                            updateProductCostPrice(p.id, undefined)
+                            return
+                          }
+                          const value = Number(cleaned)
+                          if (Number.isFinite(value) && value >= 0) {
+                            updateProductCostPrice(p.id, Math.round(value))
+                          }
+                        }}
+                        aria-label={`Purchase cost for ${p.name}`}
+                        placeholder="Not set"
+                        className="input w-32 px-3 py-1.5 font-mono"
+                      />
+                    </td>
+                    <td className="px-5 py-3">
                       <Switch
                         checked={p.active}
                         onChange={(v) => setProductActive(p.id, v)}
@@ -1002,6 +1047,7 @@ export function Admin() {
           </div>
         </div>
       ) : null}
+      {tab === 'finance' ? <Finance /> : null}
     </div>
   )
 }
@@ -1192,10 +1238,11 @@ function OrderRow({
               </li>
             ))}
           </ul>
-          {order.discount ? (
+          {order.discount || order.tradeInValue ? (
             <p className="mt-3 text-xs text-fg-muted">
-              Subtotal {formatKES(order.subtotal ?? order.total + order.discount)} · Discount{' '}
-              <span className="font-semibold text-success">− {formatKES(order.discount)}</span>
+              Subtotal {formatKES(order.subtotal ?? order.total + (order.discount ?? 0) + (order.tradeInValue ?? 0))}
+              {order.discount ? <> · Discount <span className="font-semibold text-success">− {formatKES(order.discount)}</span></> : null}
+              {order.tradeInValue ? <> · Trade-in ({order.tradeInDevice}) <span className="font-semibold text-success">− {formatKES(order.tradeInValue)}</span></> : null}
             </p>
           ) : null}
           {order.note ? <p className="mt-3 text-xs text-fg-muted">Note: {order.note}</p> : null}

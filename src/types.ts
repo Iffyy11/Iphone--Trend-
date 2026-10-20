@@ -21,6 +21,8 @@ export interface Product {
   id: string
   name: string
   price: number
+  /** Purchase cost per unit, used for gross-profit reporting when known. */
+  costPrice?: number
   category: string
   active: boolean
 }
@@ -30,6 +32,8 @@ export interface OrderLine {
   name: string
   qty: number
   unitPrice: number
+  /** Cost per unit captured at checkout for historical profit reporting. */
+  unitCost?: number
   /** Device IMEI (phones / tracked devices). */
   imei?: string
   /** Device serial number. */
@@ -44,11 +48,14 @@ export interface Order {
   id: string
   createdAt: string
   lines: OrderLine[]
-  /** Sum of lines before discount (absent on legacy records — equals total). */
+  /** Sum of line prices before discount or trade-in credit. */
   subtotal?: number
   /** Discount in KSh taken off the subtotal. */
   discount?: number
-  /** Amount actually charged (subtotal − discount). */
+  /** Accepted trade-in value applied as credit to the sale. */
+  tradeInValue?: number
+  tradeInDevice?: string
+  /** Amount actually charged (subtotal − discount − trade-in credit). */
   total: number
   role: UserRole
   staffLabel: string
@@ -75,4 +82,61 @@ export interface WarrantyRecord {
   warrantyMonths: number
   expiresAt: string
   orderStatus: Order['status']
+}
+
+export type SupplierRecordKind = 'credit' | 'consignment'
+
+export interface SupplierRecord {
+  id: string
+  kind: SupplierRecordKind
+  supplier: string
+  product: string
+  quantity: number
+  unitCost: number
+  receivedAt: string
+  dueDate?: string
+  unitsSold: number
+  settledAmount: number
+  note?: string
+}
+
+export interface ExpenseRecord {
+  id: string
+  date: string
+  category: string
+  description: string
+  amount: number
+  vatRate: number
+}
+
+export interface BusinessInvoice {
+  id: string
+  number: string
+  customer: string
+  issuedAt: string
+  dueDate?: string
+  amount: number
+  paidAmount: number
+  note?: string
+}
+
+export interface TradeInRecord {
+  id: string
+  receivedAt: string
+  customer: string
+  device: string
+  imei?: string
+  condition: string
+  value: number
+  saleReference?: string
+  note?: string
+}
+
+export interface VatRecord {
+  id: string
+  date: string
+  kind: 'output' | 'input'
+  reference: string
+  taxableAmount: number
+  vatRate: number
 }
