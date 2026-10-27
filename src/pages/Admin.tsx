@@ -1238,11 +1238,19 @@ function OrderRow({
               </li>
             ))}
           </ul>
-          {order.discount || order.tradeInValue ? (
+          {order.discount || order.tradeInValue || order.vatRate !== undefined ? (
             <p className="mt-3 text-xs text-fg-muted">
               Subtotal {formatKES(order.subtotal ?? order.total + (order.discount ?? 0) + (order.tradeInValue ?? 0))}
               {order.discount ? <> · Discount <span className="font-semibold text-success">− {formatKES(order.discount)}</span></> : null}
               {order.tradeInValue ? <> · Trade-in ({order.tradeInDevice}) <span className="font-semibold text-success">− {formatKES(order.tradeInValue)}</span></> : null}
+              {order.vatRate !== undefined ? <> · VAT ({order.vatRate}%) {order.vatInclusive ? 'included' : ''} <span className="font-semibold">{formatKES(order.vatAmount ?? 0)}</span></> : null}
+            </p>
+          ) : null}
+          {order.customerPhone || order.customerEmail ? (
+            <p className="mt-2 text-xs text-fg-muted">
+              {order.customerPhone ? `Phone: ${order.customerPhone}` : ''}
+              {order.customerPhone && order.customerEmail ? ' · ' : ''}
+              {order.customerEmail ? `Email: ${order.customerEmail}` : ''}
             </p>
           ) : null}
           {order.note ? <p className="mt-3 text-xs text-fg-muted">Note: {order.note}</p> : null}

@@ -4,6 +4,10 @@ export function isAccessoryProduct(p: Pick<Product, 'category'>): boolean {
   return p.category === 'Accessories'
 }
 
+export function isTabletProduct(p: Pick<Product, 'category'>): boolean {
+  return p.category.startsWith('iPad')
+}
+
 export type ProductParts = {
   model: string
   storage?: string

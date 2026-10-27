@@ -15,7 +15,7 @@ import { useMemo, useState } from 'react'
 import { SHOP } from '../brand'
 import { DEFAULT_PHONE_WARRANTY_MONTHS, WARRANTY_OPTIONS } from '../data/warrantyOptions'
 import { formatKES, orderRefFromId } from '../lib/format'
-import { colourSwatch, describeProduct, isAccessoryProduct } from '../lib/products'
+import { colourSwatch, describeProduct, isAccessoryProduct, isTabletProduct } from '../lib/products'
 import type { Order, OrderLine, PaymentMethod, Product } from '../types'
 import { PageHeader } from '../components/PageHeader'
 import { ReceiptPrint } from '../components/ReceiptPrint'
@@ -57,6 +57,8 @@ export function Cashier() {
   const [note, setNote] = useState('')
   const [customerName, setCustomerName] = useState('')
   const [customerId, setCustomerId] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [customerEmail, setCustomerEmail] = useState('')
   const [lastOrder, setLastOrder] = useState<Order | null>(null)
   const [showReceipt, setShowReceipt] = useState(false)
   const [checkoutError, setCheckoutError] = useState('')
@@ -204,6 +206,7 @@ export function Cashier() {
       : discountMode === 'percent'
         ? Math.round((subtotal * discountValue) / 100)
         : Math.round(discountValue)
+  const saleSubtotal = Math.max(0, subtotal - discountAmount)
   const tradeInValue = tradeInOpen ? Number(tradeInInput.replace(/,/g, '').trim() || 0) : 0
   const tradeInError = tradeInOpen && (
     !tradeInDevice.trim()
@@ -214,7 +217,8 @@ export function Cashier() {
           ? 'Trade-in value cannot exceed the remaining sale amount.'
           : ''
   )
-  const totalDue = subtotal - discountAmount - (tradeInError ? 0 : tradeInValue)
+  const totalDue = saleSubtotal -
+    (tradeInError ? 0 : tradeInValue)
 
   function resetDiscount() {
     setDiscountOpen(false)
@@ -267,11 +271,15 @@ export function Cashier() {
       setCheckoutError('Enter customer name and ID before completing the sale.')
       return
     }
+    if (customerEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail.trim())) {
+      setCheckoutError('Enter a valid customer email address.')
+      return
+    }
     for (const row of cart) {
       if (isAccessoryProduct(row.product)) continue
       for (let i = 0; i < row.devices.length; i++) {
         const d = row.devices[i]
-        if (d.imei.trim().length < 8) {
+        if (!isTabletProduct(row.product) && d.imei.trim().length < 8) {
           setCheckoutError(`IMEI too short for ${row.product.name} (unit ${i + 1}).`)
           return
         }
@@ -295,6 +303,8 @@ export function Cashier() {
       paymentMethod: payment,
       customerName: customerName.trim(),
       customerId: customerId.trim(),
+      customerPhone: customerPhone.trim() || undefined,
+      customerEmail: customerEmail.trim() || undefined,
       note: note.trim() || undefined,
       discount: discountAmount,
       tradeIn: tradeInOpen
@@ -315,6 +325,8 @@ export function Cashier() {
       setNote('')
       setCustomerName('')
       setCustomerId('')
+      setCustomerPhone('')
+      setCustomerEmail('')
       resetDiscount()
       resetTradeIn()
     }
@@ -355,8 +367,8 @@ export function Cashier() {
     resetDiscount()
   }
 
-  function deviceComplete(d: DeviceDraft) {
-    return d.imei.trim().length >= 8 && d.serial.trim().length >= 4
+  function deviceComplete(d: DeviceDraft, product: Product) {
+    return (isTabletProduct(product) || d.imei.trim().length >= 8) && d.serial.trim().length >= 4
   }
 
   const qtyStepper = (qty: number, dec: () => void, inc: () => void) => (
@@ -400,7 +412,7 @@ export function Cashier() {
             </div>
             <p className="text-sm font-semibold">No items yet</p>
             <p className="mt-1 max-w-[16rem] text-xs text-fg-muted">
-              Tap a product to add it. Phones ask for IMEI, serial and warranty.
+              Tap a product to add it. Phones need an IMEI and serial; iPads need a serial.
             </p>
           </div>
         ) : (
@@ -451,7 +463,8 @@ export function Cashier() {
                   {!accessory ? (
                     <div className="mt-3 space-y-2">
                       {row.devices.map((d, idx) => {
-                        const done = deviceComplete(d)
+                        const tablet = isTabletProduct(row.product)
+                        const done = deviceComplete(d, row.product)
                         return (
                           <div
                             key={idx}
@@ -467,7 +480,7 @@ export function Cashier() {
                                 </span>
                               ) : (
                                 <span className="text-[11px] font-medium text-warning">
-                                  Needs IMEI &amp; serial
+                                  {tablet ? 'Needs serial' : 'Needs IMEI & serial'}
                                 </span>
                               )}
                             </div>
@@ -475,8 +488,8 @@ export function Cashier() {
                               <input
                                 value={d.imei}
                                 onChange={(e) => updateDevice(row.rowId, idx, { imei: e.target.value })}
-                                placeholder="IMEI"
-                                aria-label={`IMEI for device ${idx + 1}`}
+                                placeholder={tablet ? 'IMEI (optional)' : 'IMEI'}
+                                aria-label={`IMEI${tablet ? ' (optional)' : ''} for device ${idx + 1}`}
                                 inputMode="numeric"
                                 className="input px-3 py-2 font-mono text-xs"
                               />
@@ -524,6 +537,24 @@ export function Cashier() {
             aria-label="Customer full name"
             className="input"
           />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <input
+              type="tel"
+              value={customerPhone}
+              onChange={(e) => setCustomerPhone(e.target.value)}
+              placeholder="Phone with country code"
+              aria-label="Customer phone with country code"
+              className="input"
+            />
+            <input
+              type="email"
+              value={customerEmail}
+              onChange={(e) => setCustomerEmail(e.target.value)}
+              placeholder="Email (optional)"
+              aria-label="Customer email"
+              className="input"
+            />
+          </div>
           <input
             value={customerId}
             onChange={(e) => setCustomerId(e.target.value)}
@@ -714,7 +745,7 @@ export function Cashier() {
           onClick={checkout}
           className="btn-primary flex w-full items-center justify-between px-5 py-3.5 text-base"
         >
-          <span>Complete sale</span>
+          <span>Create receipt</span>
           <span className="tabular-nums">{formatKES(totalDue)}</span>
         </button>
       </div>
@@ -889,6 +920,8 @@ export function Cashier() {
                 <p className="eyebrow">Customer</p>
                 <p className="mt-0.5 font-medium">{lastOrder.customerName ?? '—'}</p>
                 <p className="text-xs text-fg-muted">ID: {lastOrder.customerId ?? '—'}</p>
+                {lastOrder.customerPhone ? <p className="text-xs text-fg-muted">{lastOrder.customerPhone}</p> : null}
+                {lastOrder.customerEmail ? <p className="text-xs text-fg-muted">{lastOrder.customerEmail}</p> : null}
               </div>
               <ul className="mt-4 space-y-3 border-y border-line py-4 text-sm">
                 {lastOrder.lines.map((l, i) => (
@@ -901,9 +934,9 @@ export function Cashier() {
                     </div>
                     {l.imei || l.serialNumber || (l.warrantyMonths ?? 0) > 0 ? (
                       <div className="mt-1.5 space-y-0.5 text-xs text-fg-muted">
-                        <p>
-                          IMEI <span className="font-mono text-fg">{l.imei?.trim() || '—'}</span>
-                        </p>
+                        {l.imei?.trim() ? <p>
+                          IMEI <span className="font-mono text-fg">{l.imei.trim()}</span>
+                        </p> : null}
                         <p>
                           Serial <span className="font-mono text-fg">{l.serialNumber?.trim() || '—'}</span>
                         </p>

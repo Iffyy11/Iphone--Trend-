@@ -151,7 +151,12 @@ export function Finance() {
     () => orders.filter((order) => order.status === 'completed'),
     [orders],
   )
-  const revenue = completedOrders.reduce((sum, order) => sum + order.total, 0)
+  const revenue = completedOrders.reduce((sum, order) => {
+    const subtotal = order.subtotal ?? order.lines.reduce((lineSum, line) => lineSum + line.unitPrice * line.qty, 0)
+    const salesAfterDiscount = Math.max(0, subtotal - (order.discount ?? 0))
+    const embeddedVat = order.vatInclusive ? order.vatAmount ?? 0 : 0
+    return sum + salesAfterDiscount - embeddedVat
+  }, 0)
   const costReport = useMemo(() => {
     let knownCost = 0
     let uncostedUnits = 0
@@ -524,7 +529,7 @@ export function Finance() {
           <tbody className="divide-y divide-line">{tradeIns.length === 0 ? <tr><td colSpan={6} className="px-5 py-8 text-center text-fg-muted">No trade-ins recorded yet.</td></tr> : tradeIns.map((trade) => <tr key={trade.id}><td className="px-5 py-3">{dateLabel(trade.receivedAt)}</td><td className="px-5 py-3 font-medium">{trade.customer}</td><td className="px-5 py-3">{trade.device}{trade.imei ? <p className="font-mono text-xs text-fg-muted">{trade.imei}</p> : null}</td><td className="px-5 py-3">{trade.condition}</td><td className="px-5 py-3 font-semibold tabular-nums">{formatKES(trade.value)}</td><td className="px-5 py-3">{trade.saleReference || '—'}</td></tr>)}</tbody>
         </table></div>
       </SectionCard> : null}
-      {view === 'vat' ? <SectionCard title="VAT records" description="Enter taxable amounts exclusive of VAT. The VAT amount and net position are calculated from each record's rate.">
+      {view === 'vat' ? <SectionCard title="VAT records" description="VAT-enabled receipts create output VAT records automatically. You can also enter records manually; taxable amounts are exclusive of VAT.">
         {forms.vat}
         <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm">
           <thead className="table-head"><tr><th className="px-5 py-3">Date / reference</th><th className="px-5 py-3">Type</th><th className="px-5 py-3">Taxable amount</th><th className="px-5 py-3">Rate</th><th className="px-5 py-3">VAT amount</th></tr></thead>

@@ -80,9 +80,12 @@ interface PosState {
     paymentMethod: PaymentMethod
     customerName: string
     customerId: string
+    customerPhone?: string
+    customerEmail?: string
     note?: string
     /** KSh off the subtotal; clamped to [0, subtotal]. */
     discount?: number
+    vat?: { rate: number; inclusive: boolean }
     tradeIn?: Omit<TradeInRecord, 'id' | 'receivedAt' | 'saleReference'>
   }) => Order | null
   voidOrder: (id: string) => void
@@ -400,12 +403,31 @@ export const usePosStore = create<PosState>()(
         set((s) => ({ vatRecords: [{ ...input, id: newId() }, ...s.vatRecords] }))
       },
 
-      addOrder({ lines, paymentMethod, customerName, customerId, note, discount, tradeIn }) {
+      addOrder({
+        lines,
+        paymentMethod,
+        customerName,
+        customerId,
+        customerPhone,
+        customerEmail,
+        note,
+        discount,
+        vat,
+        tradeIn,
+      }) {
         const { session } = get()
         if (!session.role) return null
         const saleDate = new Date()
         const subtotal = lines.reduce((a, l) => a + l.unitPrice * l.qty, 0)
         const off = Math.min(subtotal, Math.max(0, Math.round(discount ?? 0)))
+        const vatRate = vat?.rate ?? 0
+        if (!Number.isFinite(vatRate) || vatRate < 0 || vatRate > 100) return null
+        const taxableAmount = Math.max(0, subtotal - off)
+        const vatAmount = vatRate > 0
+          ? Math.round((vat?.inclusive ?? false)
+              ? taxableAmount * vatRate / (100 + vatRate)
+              : taxableAmount * vatRate / 100)
+          : 0
         const rawTradeInValue = tradeIn?.value ?? 0
         if (
           !Number.isFinite(rawTradeInValue) ||
@@ -414,8 +436,8 @@ export const usePosStore = create<PosState>()(
           (tradeIn !== undefined && (!tradeIn.customer.trim() || !tradeIn.device.trim() || !tradeIn.condition.trim()))
         ) return null
         const tradeInValue = Math.round(rawTradeInValue)
-        if (tradeInValue > subtotal - off) return null
-        const total = subtotal - off - tradeInValue
+        if (tradeInValue > taxableAmount) return null
+        const total = taxableAmount + (vat?.inclusive ? 0 : vatAmount) - tradeInValue
         const orderId = newOrderId()
 
         const linesWithExpiry: OrderLine[] = lines.map((l) => {
@@ -431,8 +453,13 @@ export const usePosStore = create<PosState>()(
           id: orderId,
           createdAt: saleDate.toISOString(),
           lines: linesWithExpiry,
-          ...(off > 0 || tradeInValue > 0 ? { subtotal, ...(off > 0 ? { discount: off } : {}) } : {}),
+          ...(off > 0 || tradeInValue > 0 || vatRate > 0
+            ? { subtotal, ...(off > 0 ? { discount: off } : {}) }
+            : {}),
           ...(tradeInValue > 0 ? { tradeInValue, tradeInDevice: tradeIn?.device.trim() } : {}),
+          ...(vat
+            ? { vatRate, vatAmount, vatInclusive: vat?.inclusive ?? false }
+            : {}),
           total,
           role: session.role,
           staffLabel: session.staffName,
@@ -440,10 +467,27 @@ export const usePosStore = create<PosState>()(
           status: 'completed',
           customerName: customerName.trim(),
           customerId: customerId.trim(),
+          customerPhone: customerPhone?.trim() || undefined,
+          customerEmail: customerEmail?.trim() || undefined,
           note,
         }
         set((s) => ({
           orders: [order, ...s.orders],
+          ...(vat
+            ? {
+                vatRecords: [
+                  {
+                    id: newId(),
+                    date: saleDate.toISOString(),
+                    kind: 'output' as const,
+                    reference: orderId,
+                    taxableAmount,
+                    vatRate,
+                  },
+                  ...s.vatRecords,
+                ],
+              }
+            : {}),
           ...(tradeInValue > 0 && tradeIn
             ? {
                 tradeIns: [
@@ -479,6 +523,14 @@ export const usePosStore = create<PosState>()(
         const acc = state.adminAccount as Record<string, unknown> | null | undefined
         if (acc && 'pinHash' in acc && !('passwordHash' in acc)) {
           usePosStore.setState({ adminAccount: null })
+        }
+        const products = state.products ?? seedProducts
+        const productIds = new Set(products.map((product) => product.id))
+        const missingIpads = seedProducts.filter(
+          (product) => product.category.startsWith('iPad') && !productIds.has(product.id),
+        )
+        if (missingIpads.length > 0) {
+          usePosStore.setState({ products: [...products, ...missingIpads] })
         }
       },
       partialize: (s) => ({

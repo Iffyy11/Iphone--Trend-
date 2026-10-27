@@ -55,7 +55,13 @@ export interface Order {
   /** Accepted trade-in value applied as credit to the sale. */
   tradeInValue?: number
   tradeInDevice?: string
-  /** Amount actually charged (subtotal − discount − trade-in credit). */
+  /** VAT rate selected for the sale, in percent. */
+  vatRate?: number
+  /** VAT amount captured at sale time. */
+  vatAmount?: number
+  /** Whether line prices already include the selected VAT rate. */
+  vatInclusive?: boolean
+  /** Amount actually charged, including VAT where enabled and less trade-in credit. */
   total: number
   role: UserRole
   staffLabel: string
@@ -65,6 +71,8 @@ export interface Order {
   customerName?: string
   /** National ID or passport (optional on legacy records) */
   customerId?: string
+  customerPhone?: string
+  customerEmail?: string
   note?: string
 }
 

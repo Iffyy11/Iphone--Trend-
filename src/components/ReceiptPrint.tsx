@@ -13,7 +13,14 @@ export function ReceiptPrint({ order }: { order: Order }) {
 
   return (
     <div className="hidden print:block print:bg-white">
-      <article className="receipt-print mx-auto max-w-[300px] bg-white px-6 py-8 text-slate-900">
+      <article className="receipt-print relative isolate mx-auto max-w-[300px] bg-white px-6 py-8 text-slate-900">
+        <img
+          src="/logo.png"
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 top-1/2 z-0 w-44 -translate-x-1/2 -translate-y-1/2 select-none opacity-[0.06] print:opacity-[0.08]"
+        />
+        <div className="relative z-10">
         {/* Brand */}
         <header className="border-b-2 border-slate-900 pb-4 text-center">
           <div className="mx-auto mb-3 flex justify-center">
@@ -60,6 +67,8 @@ export function ReceiptPrint({ order }: { order: Order }) {
           <p className="mt-1 font-sans text-[11px] text-slate-600">
             <span className="text-slate-400">ID</span> {cid}
           </p>
+          {order.customerPhone ? <p className="mt-1 font-sans text-[11px] text-slate-600">{order.customerPhone}</p> : null}
+          {order.customerEmail ? <p className="mt-1 break-all font-sans text-[11px] text-slate-600">{order.customerEmail}</p> : null}
         </section>
 
         {/* Line items */}
@@ -70,7 +79,7 @@ export function ReceiptPrint({ order }: { order: Order }) {
           </div>
           <ul className="space-y-4">
             {order.lines.map((l, i) => {
-              const isPhoneLine =
+              const hasDeviceDetails =
                 Boolean(l.imei?.trim()) ||
                 Boolean(l.serialNumber?.trim()) ||
                 (l.warrantyMonths ?? 0) > 0
@@ -85,12 +94,12 @@ export function ReceiptPrint({ order }: { order: Order }) {
                       {formatKES(l.unitPrice * l.qty)}
                     </span>
                   </div>
-                  {isPhoneLine ? (
+                  {hasDeviceDetails ? (
                     <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 font-mono text-[9px] leading-relaxed text-slate-700 print:border-slate-300 print:bg-slate-50">
-                      <p>
+                      {l.imei?.trim() ? <p>
                         <span className="font-sans font-semibold text-slate-500">IMEI</span>{' '}
-                        {l.imei?.trim() || '—'}
-                      </p>
+                        {l.imei.trim()}
+                      </p> : null}
                       <p className="mt-0.5">
                         <span className="font-sans font-semibold text-slate-500">Serial</span>{' '}
                         {l.serialNumber?.trim() || '—'}
@@ -152,6 +161,7 @@ export function ReceiptPrint({ order }: { order: Order }) {
           <p className="mt-1 break-all text-[10px] text-slate-600">{SHOP.email}</p>
           <p className="mt-4 text-[11px] font-semibold tracking-wide text-slate-900">Thank you</p>
         </footer>
+        </div>
       </article>
     </div>
   )
