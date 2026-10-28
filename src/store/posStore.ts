@@ -518,6 +518,23 @@ export const usePosStore = create<PosState>()(
     }),
     {
       name: 'iphone-trend-pos',
+      version: 1,
+      migrate: (persistedState, version) => {
+        const state = persistedState as PosState
+        if (version < 1 && Array.isArray(state.products)) {
+          const updatedSeedProducts = seedProducts.filter((product) =>
+            /^iPhone (?:16|15|14|13|12|11|X|XS)$/.test(product.category) ||
+            /^sam-(?:s2[1-5]|fold6)/.test(product.id),
+          )
+          const updatesById = new Map(updatedSeedProducts.map((product) => [product.id, product]))
+          const storedIds = new Set(state.products.map((product) => product.id))
+          state.products = [
+            ...state.products.map((product) => updatesById.get(product.id) ?? product),
+            ...updatedSeedProducts.filter((product) => !storedIds.has(product.id)),
+          ]
+        }
+        return state
+      },
       onRehydrateStorage: () => (state) => {
         if (!state) return
         const acc = state.adminAccount as Record<string, unknown> | null | undefined
