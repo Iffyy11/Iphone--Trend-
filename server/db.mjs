@@ -23,8 +23,7 @@ export function getPool() {
 
 export async function initializeDatabase() {
   if (!schemaPromise) {
-    schemaPromise = getPool()
-      .then((db) => db.query(`
+    schemaPromise = getPool().query(`
         CREATE TABLE IF NOT EXISTS admins (
           id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
           email TEXT NOT NULL UNIQUE,
@@ -42,7 +41,7 @@ export async function initializeDatabase() {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMPTZ
         );
-      `))
+      `)
       .catch((error) => {
         schemaPromise = undefined
         throw error
