@@ -1,4 +1,4 @@
-import { getDb } from '../_lib/db.mjs'
+import { deleteCashier } from '../_lib/db.mjs'
 
 export default async function handler(req, res) {
   if (req.method !== 'DELETE') {
@@ -13,8 +13,7 @@ export default async function handler(req, res) {
       res.status(400).json({ ok: false, message: 'Cashier id is required.' })
       return
     }
-    const db = await getDb()
-    await db.collection('cashiers').deleteOne({ id })
+    await deleteCashier(id)
     res.status(200).json({ ok: true })
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unknown error'

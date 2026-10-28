@@ -1,4 +1,4 @@
-import { getDb, hashWithSalt, normalizeEmail, readJson } from '../_lib/db.mjs'
+import { findAdminByEmail, hashWithSalt, normalizeEmail, readJson } from '../_lib/db.mjs'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -16,8 +16,7 @@ export default async function handler(req, res) {
       return
     }
 
-    const db = await getDb()
-    const admin = await db.collection('admins').findOne({ email })
+    const admin = await findAdminByEmail(email)
     if (!admin) {
       res.status(401).json({ ok: false })
       return

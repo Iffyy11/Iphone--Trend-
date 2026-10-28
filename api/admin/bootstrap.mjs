@@ -1,4 +1,4 @@
-import { getDb, hashWithSalt, normalizeEmail, randomSalt, readJson } from '../_lib/db.mjs'
+import { createAdmin, hashWithSalt, normalizeEmail, randomSalt, readJson } from '../_lib/db.mjs'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -16,17 +16,13 @@ export default async function handler(req, res) {
       return
     }
 
-    const db = await getDb()
-    const admins = db.collection('admins')
-    const hasAdmin = await admins.findOne({}, { projection: { _id: 1 } })
-    if (hasAdmin) {
+    const salt = randomSalt()
+    const passwordHash = hashWithSalt(password, salt)
+    const created = await createAdmin({ email, salt, passwordHash })
+    if (!created) {
       res.status(409).json({ ok: false, message: 'Administrator already exists.' })
       return
     }
-
-    const salt = randomSalt()
-    const passwordHash = hashWithSalt(password, salt)
-    await admins.insertOne({ email, salt, passwordHash, createdAt: new Date().toISOString() })
     res.status(200).json({ ok: true })
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unknown error'

@@ -1,4 +1,4 @@
-import { getDb, hashWithSalt, randomSalt, readJson } from '../../_lib/db.mjs'
+import { hashWithSalt, randomSalt, readJson, updateCashierPin } from '../../_lib/db.mjs'
 
 export default async function handler(req, res) {
   if (req.method !== 'PATCH') {
@@ -17,15 +17,7 @@ export default async function handler(req, res) {
     }
     const pinSalt = randomSalt()
     const pinHash = hashWithSalt(pin, pinSalt)
-    const db = await getDb()
-    const result = await db.collection('cashiers').findOneAndUpdate(
-      { id },
-      { $set: { pinPlain: pin, pinSalt, pinHash, updatedAt: new Date().toISOString() } },
-      {
-        returnDocument: 'after',
-        projection: { _id: 0, id: 1, name: 1, pinPlain: 1, pinSalt: 1, pinHash: 1 },
-      },
-    )
+    const result = await updateCashierPin(id, pin, pinSalt, pinHash)
     if (!result) {
       res.status(404).json({ ok: false, message: 'Cashier not found.' })
       return

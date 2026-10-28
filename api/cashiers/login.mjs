@@ -1,4 +1,4 @@
-import { getDb, hashWithSalt, readJson } from '../_lib/db.mjs'
+import { hashWithSalt, listCashiers, readJson } from '../_lib/db.mjs'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -14,11 +14,7 @@ export default async function handler(req, res) {
       res.status(400).json({ ok: false, message: 'PIN is required.' })
       return
     }
-    const db = await getDb()
-    const rows = await db
-      .collection('cashiers')
-      .find({}, { projection: { _id: 0, id: 1, name: 1, pinSalt: 1, pinHash: 1 } })
-      .toArray()
+    const rows = await listCashiers({ includePinPlain: false })
     for (const c of rows) {
       const h = hashWithSalt(pin, c.pinSalt)
       if (h === c.pinHash) {

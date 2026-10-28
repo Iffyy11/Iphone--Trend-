@@ -1,14 +1,10 @@
 import crypto from 'node:crypto'
-import { getDb, hashWithSalt, randomSalt, readJson } from '../_lib/db.mjs'
+import { createCashier, hashWithSalt, listCashiers, randomSalt, readJson } from '../_lib/db.mjs'
 
 export default async function handler(req, res) {
   try {
-    const db = await getDb()
     if (req.method === 'GET') {
-      const rows = await db
-        .collection('cashiers')
-        .find({}, { projection: { _id: 0, id: 1, name: 1, pinPlain: 1, pinSalt: 1, pinHash: 1 } })
-        .toArray()
+      const rows = await listCashiers()
       res.status(200).json({ ok: true, cashiers: rows })
       return
     }
@@ -25,8 +21,8 @@ export default async function handler(req, res) {
       const pinSalt = randomSalt()
       const pinHash = hashWithSalt(pin, pinSalt)
       const cashier = { id, name, pinPlain: pin, pinSalt, pinHash, createdAt: new Date().toISOString() }
-      await db.collection('cashiers').insertOne(cashier)
-      res.status(200).json({ ok: true, cashier: { id, name, pinPlain: pin, pinSalt, pinHash } })
+      const savedCashier = await createCashier(cashier)
+      res.status(200).json({ ok: true, cashier: savedCashier })
       return
     }
 
