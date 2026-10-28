@@ -2,6 +2,8 @@ import 'dotenv/config'
 import cors from 'cors'
 import express from 'express'
 import crypto from 'node:crypto'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   createAdmin,
   createCashier,
@@ -19,6 +21,7 @@ import {
 
 const app = express()
 const port = Number(process.env.PORT) || 8787
+const webRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../dist')
 
 const frontendOrigin = process.env.FRONTEND_ORIGIN?.trim()
 app.use(
@@ -28,6 +31,7 @@ app.use(
   }),
 )
 app.use(express.json())
+app.use(express.static(webRoot))
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'iphone-trend-api' })
@@ -188,7 +192,17 @@ app.post('/api/cashiers/login', async (req, res) => {
   }
 })
 
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    next()
+    return
+  }
+  res.sendFile(resolve(webRoot, 'index.html'), (error) => {
+    if (error) next(error)
+  })
+})
+
 await initializeDatabase()
 app.listen(port, () => {
-  console.log(`API http://localhost:${port}  (GET /health, GET /api/health)`)
+  console.log(`iPhone Trend app and API listening on port ${port}`)
 })

@@ -1,26 +1,25 @@
 # React + TypeScript + Vite
 
-## Render PostgreSQL API
+## Render deployment
 
-The API stores administrator and cashier accounts in PostgreSQL. Product catalog,
-sales, customer, and finance data remain in each browser's local storage.
+The Render Web Service serves both the website and API. Administrator and cashier
+accounts are stored in PostgreSQL. Product catalog, sales, customer, and finance
+data remain in each browser's local storage.
 
 1. Create a PostgreSQL database in Render.
 2. Create a Render Web Service from this repository. Leave **Root Directory**
-   empty, set the build command to `npm install --prefix server`, and set the start
-   command to `npm start --prefix server`.
+   empty. Set the build command to `npm install && npm run build && npm install
+   --prefix server` and the start command to `npm start --prefix server`.
 3. Add `DATABASE_URL` to the Web Service using the database's **Internal Database
-   URL**. Add `FRONTEND_ORIGIN` with the exact deployed frontend origin (for
-   example, `https://your-app.vercel.app`).
-4. In the frontend host's environment settings, set `VITE_API_URL` to the public
-   Render Web Service URL (for example, `https://iphone-trend-api.onrender.com`),
-   without a trailing slash, then redeploy the frontend.
-5. Open the deployed app, choose **Admin**, and create the first administrator.
+   URL**. The site and API share the same origin, so `VITE_API_URL` and
+   `FRONTEND_ORIGIN` are not needed.
+4. Open the service URL, choose **Admin**, and create the first administrator.
    The API creates the required PostgreSQL tables automatically on startup.
 
 For local API development, copy `server/.env.example` to `server/.env` and set
 `DATABASE_URL` to Render's **External Database URL**. Set `PGSSLMODE=require`
-when using that external connection, then run `npm run server:dev`.
+when using that external connection. Build the frontend with `npm run build`,
+then run `npm run server:dev`.
 
 Moving the API to PostgreSQL does not transfer accounts from a previous MongoDB
 database. Create the first admin again and re-add cashier accounts. Browser-local
