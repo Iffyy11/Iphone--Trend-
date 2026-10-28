@@ -5,16 +5,22 @@ import { SHOP } from '../brand'
 import { InstallButton } from '../components/InstallButton'
 import { LogoMark } from '../components/LogoMark'
 import { ThemeToggle } from '../components/ThemeToggle'
+import { apiJson, hasApiBase } from '../lib/api'
 import type { UserRole } from '../types'
 import { usePosStore } from '../store/posStore'
+
+type AdminSetupState = 'checking' | 'setup' | 'login' | 'unavailable'
 
 export function Login() {
   const navigate = useNavigate()
   const session = usePosStore((s) => s.session)
+  const adminAccount = usePosStore((s) => s.adminAccount)
+  const initAdminAccount = usePosStore((s) => s.initAdminAccount)
   const adminLogin = usePosStore((s) => s.adminLogin)
   const cashierLogin = usePosStore((s) => s.cashierLogin)
 
   const [hydrated, setHydrated] = useState(false)
+  const [adminSetupState, setAdminSetupState] = useState<AdminSetupState>('checking')
   const [role, setRole] = useState<UserRole>('cashier')
   const [pin, setPin] = useState('')
   const [email, setEmail] = useState('')
@@ -30,6 +36,29 @@ export function Login() {
     if (usePosStore.persist.hasHydrated()) finish()
     return unsub
   }, [])
+
+  useEffect(() => {
+    if (!hydrated || role !== 'admin') return
+    let active = true
+    setAdminSetupState('checking')
+    if (!hasApiBase()) {
+      setAdminSetupState(adminAccount ? 'login' : 'setup')
+      return () => {
+        active = false
+      }
+    }
+
+    apiJson<{ ok: boolean; hasAdmin: boolean }>('/api/admin/status')
+      .then((result) => {
+        if (active) setAdminSetupState(result.hasAdmin ? 'login' : 'setup')
+      })
+      .catch(() => {
+        if (active) setAdminSetupState('unavailable')
+      })
+    return () => {
+      active = false
+    }
+  }, [hydrated, role, adminAccount])
 
   useEffect(() => {
     if (!session.role) return
@@ -58,9 +87,33 @@ export function Login() {
         setError('Enter email and password.')
         return
       }
+      if (adminSetupState === 'checking') {
+        setError('Checking administrator setup. Please try again in a moment.')
+        return
+      }
+      if (adminSetupState === 'unavailable') {
+        setError('Unable to reach the sign-in service. Check the API and database connection, then try again.')
+        return
+      }
+      if (adminSetupState === 'setup') {
+        const created = await initAdminAccount(email, password)
+        if (!created) {
+          setError('Could not create the administrator. The account may already exist, or the server/database may be unavailable.')
+          setAdminSetupState('checking')
+          return
+        }
+        setAdminSetupState('login')
+        const signedIn = await adminLogin(email, password)
+        if (!signedIn) {
+          setError('Administrator created, but sign-in failed. Please sign in with the credentials you just created.')
+          return
+        }
+        navigate('/admin', { replace: true })
+        return
+      }
       const ok = await adminLogin(email, password)
       if (!ok) {
-        setError('Wrong email/password, admin not found, or server not reachable.')
+        setError('Incorrect email or password.')
         return
       }
       navigate('/admin', { replace: true })
@@ -128,6 +181,7 @@ export function Login() {
                     setPassword('')
                     setShowPin(false)
                     setShowPassword(false)
+                    if (r === 'admin') setAdminSetupState('checking')
                   }}
                   className={`rounded-lg py-2 text-sm font-semibold capitalize transition ${
                     role === r ? 'bg-surface text-fg shadow-card' : 'text-fg-muted hover:text-fg'
@@ -166,6 +220,19 @@ export function Login() {
               </div>
             ) : (
               <>
+                {adminSetupState === 'checking' ? (
+                  <p className="text-sm text-fg-muted">Checking administrator setup…</p>
+                ) : null}
+                {adminSetupState === 'setup' ? (
+                  <p className="rounded-xl border border-accent/20 bg-accent/5 px-3 py-2.5 text-sm text-fg-muted">
+                    No administrator account exists yet. Create your admin login below.
+                  </p>
+                ) : null}
+                {adminSetupState === 'unavailable' ? (
+                  <p className="rounded-xl border border-danger/20 bg-danger/10 px-3 py-2.5 text-sm text-danger">
+                    The sign-in service is unavailable. Check the API deployment and MongoDB connection.
+                  </p>
+                ) : null}
                 <div>
                   <label htmlFor="email" className="label flex items-center gap-1.5">
                     <Mail className="h-3.5 w-3.5" />
@@ -214,7 +281,11 @@ export function Login() {
             ) : null}
 
             <button type="submit" disabled={busy} className="btn-primary w-full py-3">
-              {busy ? 'Please wait…' : 'Continue'}
+              {busy
+                ? 'Please wait…'
+                : role === 'admin' && adminSetupState === 'setup'
+                  ? 'Create admin account'
+                  : 'Continue'}
             </button>
           </form>
           <InstallButton className="mt-6" />
