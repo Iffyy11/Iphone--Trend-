@@ -32,8 +32,14 @@ export function ReceiptPrint({ order }: { order: Order }) {
           <h1 className="font-sans text-lg font-bold tracking-tight text-slate-900">
             {SHOP.displayName}
           </h1>
-          <p className="mt-1 font-sans text-[10px] font-medium uppercase tracking-[0.12em] text-slate-500">
-            {SHOP.gradeLine}
+          <p className="mt-1 font-sans text-[10px] font-medium leading-relaxed text-slate-600">
+            {SHOP.address}
+          </p>
+          <p className="mt-1 font-sans text-[10px] text-slate-600">
+            {SHOP.phone}
+          </p>
+          <p className="mt-0.5 break-all font-sans text-[10px] text-slate-600">
+            {SHOP.email}
           </p>
         </header>
 
@@ -155,11 +161,7 @@ export function ReceiptPrint({ order }: { order: Order }) {
 
         {/* Footer */}
         <footer className="mt-6 border-t border-dashed border-slate-300 pt-4 text-center font-sans">
-          <p className="text-[10px] font-medium text-slate-700">
-            <span className="text-slate-400">WhatsApp</span> {SHOP.phone}
-          </p>
-          <p className="mt-1 break-all text-[10px] text-slate-600">{SHOP.email}</p>
-          <p className="mt-4 text-[11px] font-semibold tracking-wide text-slate-900">Thank you</p>
+          <p className="text-[11px] font-semibold tracking-wide text-slate-900">Thank you</p>
         </footer>
         </div>
       </article>
