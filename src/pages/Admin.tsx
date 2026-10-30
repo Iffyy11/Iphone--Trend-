@@ -71,7 +71,6 @@ export function Admin() {
   const updateCashierPin = usePosStore((s) => s.updateCashierPin)
   const fetchCashiers = usePosStore((s) => s.fetchCashiers)
   const updateAdminCredentials = usePosStore((s) => s.updateAdminCredentials)
-  const resetSharedData = usePosStore((s) => s.resetSharedData)
 
   const [searchParams] = useSearchParams()
   const tab = parseAdminTab(searchParams.get('tab'))
@@ -105,7 +104,6 @@ export function Admin() {
   const [newProductCost, setNewProductCost] = useState('')
   const [newProductActive, setNewProductActive] = useState(true)
   const [addProductMsg, setAddProductMsg] = useState('')
-  const [resetMessage, setResetMessage] = useState('')
 
   const today = useMemo(() => startOfDay(new Date()), [])
 
@@ -319,32 +317,11 @@ export function Admin() {
         <Plus className="h-4 w-4" />
         Add product
       </button>
-    ) : tab === 'finance' ? (
-      <button
-        type="button"
-        onClick={async () => {
-          setResetMessage('')
-          const confirmed = confirm(
-            'Permanently delete all sales, trade-ins, supplier names, stock received, supplier payments, expenses and invoices from the shared POS? Products and user accounts will be kept. This cannot be undone.',
-          )
-          if (!confirmed) return
-          const reset = await resetSharedData()
-          setResetMessage(reset
-            ? 'Shared transaction and supplier records have been cleared. Products and accounts were kept.'
-            : 'Could not clear shared records. Check the sync error and try again.')
-        }}
-        className="btn-danger"
-      >
-        Reset sales & supplier data
-      </button>
     ) : null
 
   return (
     <div className="min-w-0">
       <PageHeader title={section.label} description={section.description} actions={headerActions} />
-      {tab === 'finance' && resetMessage ? (
-        <p role="status" className="mb-4 text-sm text-fg-muted">{resetMessage}</p>
-      ) : null}
 
       {tab === 'overview' ? (
         <div className="space-y-6">
