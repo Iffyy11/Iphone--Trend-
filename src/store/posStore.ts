@@ -37,6 +37,28 @@ export interface Session {
   staffName: string
 }
 
+let persistenceError: string | null = null
+const persistenceErrorListeners = new Set<() => void>()
+
+function setPersistenceError(error: unknown) {
+  persistenceError = error instanceof Error ? error.message : String(error)
+  persistenceErrorListeners.forEach((listener) => listener())
+}
+
+export function getPersistenceError() {
+  return persistenceError
+}
+
+export function subscribePersistenceError(listener: () => void) {
+  persistenceErrorListeners.add(listener)
+  return () => persistenceErrorListeners.delete(listener)
+}
+
+function clearPersistenceError() {
+  persistenceError = null
+  persistenceErrorListeners.forEach((listener) => listener())
+}
+
 interface PosState {
   products: Product[]
   orders: Order[]
@@ -557,8 +579,17 @@ export const usePosStore = create<PosState>()(
         }
         return state
       },
-      onRehydrateStorage: () => (state) => {
-        if (!state) return
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.error('Unable to load saved POS data.', error)
+          setPersistenceError(error)
+          return
+        }
+        if (!state) {
+          setPersistenceError(new Error('Saved POS data could not be loaded.'))
+          return
+        }
+        clearPersistenceError()
         const acc = state.adminAccount as Record<string, unknown> | null | undefined
         if (acc && 'pinHash' in acc && !('passwordHash' in acc)) {
           usePosStore.setState({ adminAccount: null })

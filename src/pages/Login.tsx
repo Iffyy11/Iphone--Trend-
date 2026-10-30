@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { KeyRound, Lock, Mail } from 'lucide-react'
 import { SHOP } from '../brand'
@@ -7,7 +7,11 @@ import { LogoMark } from '../components/LogoMark'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { apiJson, hasApiBase } from '../lib/api'
 import type { UserRole } from '../types'
-import { usePosStore } from '../store/posStore'
+import {
+  getPersistenceError,
+  subscribePersistenceError,
+  usePosStore,
+} from '../store/posStore'
 
 type AdminSetupState = 'checking' | 'setup' | 'login' | 'unavailable'
 
@@ -18,6 +22,11 @@ export function Login() {
   const initAdminAccount = usePosStore((s) => s.initAdminAccount)
   const adminLogin = usePosStore((s) => s.adminLogin)
   const cashierLogin = usePosStore((s) => s.cashierLogin)
+  const persistenceError = useSyncExternalStore(
+    subscribePersistenceError,
+    getPersistenceError,
+    getPersistenceError,
+  )
 
   const [hydrated, setHydrated] = useState(false)
   const [adminSetupState, setAdminSetupState] = useState<AdminSetupState>('checking')
@@ -125,7 +134,23 @@ export function Login() {
   if (!hydrated) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-canvas">
-        <p className="text-sm text-fg-muted">Loading…</p>
+        {persistenceError ? (
+          <div className="mx-4 max-w-sm rounded-2xl border border-danger/20 bg-surface p-6 text-center shadow-card">
+            <h1 className="text-lg font-semibold text-fg">Unable to load saved POS data</h1>
+            <p className="mt-2 text-sm text-fg-muted">
+              Your saved data has not been deleted. Try loading it again, or reload this page.
+            </p>
+            <button
+              type="button"
+              onClick={() => usePosStore.persist.rehydrate()}
+              className="btn-primary mt-5 w-full"
+            >
+              Retry loading
+            </button>
+          </div>
+        ) : (
+          <p className="text-sm text-fg-muted">Loading…</p>
+        )}
       </div>
     )
   }
