@@ -34,11 +34,12 @@ function emptySupplierDevice(): SupplierDeviceDraft {
   }
 }
 
-type FinanceView = 'summary' | 'suppliers' | 'expenses' | 'invoices' | 'trade-ins'
+type FinanceView = 'summary' | 'suppliers' | 'stock' | 'expenses' | 'invoices' | 'trade-ins'
 
 const VIEWS: { id: FinanceView; label: string }[] = [
   { id: 'summary', label: 'Profit & reports' },
-  { id: 'suppliers', label: 'Suppliers & stock' },
+  { id: 'suppliers', label: 'Suppliers' },
+  { id: 'stock', label: 'Stock' },
   { id: 'expenses', label: 'Expenses' },
   { id: 'invoices', label: 'Invoices' },
   { id: 'trade-ins', label: 'Trade-ins' },
@@ -451,13 +452,15 @@ export function Finance() {
 
   const forms = {
     suppliers: (
-      <>
       <form onSubmit={saveNewSupplier} className="flex flex-col gap-3 border-b border-line bg-subtle/40 p-5 sm:flex-row sm:items-end">
         <Field label="Create supplier">
           <input required value={newSupplierName} onChange={(e) => setNewSupplierName(e.target.value)} placeholder="Supplier name" className="input" />
         </Field>
         <button className="btn-secondary shrink-0" type="submit"><Plus className="h-4 w-4" /> Create supplier</button>
       </form>
+    ),
+    stock: (
+      <>
       <form onSubmit={saveSupplier} className="grid gap-3 border-b border-line p-5 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Select supplier">
           <select required value={supplier} onChange={(e) => setSupplier(e.target.value)} className="input">
@@ -568,6 +571,52 @@ export function Finance() {
                 <td className={`px-5 py-3 font-semibold tabular-nums ${balance ? 'text-warning' : 'text-success'}`}>{formatKES(balance)}</td>
               </tr>
             )})}
+        </tbody>
+      </table>
+    </div>
+  )
+
+  const stockTable = (
+    <div className="overflow-x-auto border-t border-line">
+      <table className="w-full min-w-[850px] text-left text-sm">
+        <thead className="table-head"><tr>
+          <th className="px-5 py-3">Supplier</th><th className="px-5 py-3">Received / reference</th>
+          <th className="px-5 py-3">Product / device details</th><th className="px-5 py-3">Units</th>
+          <th className="px-5 py-3">Purchase total</th>
+        </tr></thead>
+        <tbody className="divide-y divide-line">
+          {supplierRecords.length === 0
+            ? <tr><td colSpan={5} className="px-5 py-8 text-center text-fg-muted">No stock received yet. Use the form above to record a delivery.</td></tr>
+            : supplierRecords.map((record) => (
+              <tr key={record.id}>
+                <td className="px-5 py-3 font-medium">{record.supplier}</td>
+                <td className="px-5 py-3 text-xs text-fg-muted">{dateLabel(record.receivedAt)}<p className="font-mono">{record.id.slice(0, 8)}</p></td>
+                <td className="px-5 py-3">
+                  <p className="font-medium">{record.product}</p>
+                  {record.deviceDetails?.some((device) =>
+                    device.imei || device.imei2 || device.serialNumber || device.storage ||
+                    device.color || device.batteryHealth !== undefined || device.condition,
+                  ) ? (
+                    <ul className="mt-2 space-y-1 text-xs text-fg-muted">
+                      {record.deviceDetails.map((device, index) => (
+                        <li key={index}>
+                          Unit {index + 1}
+                          {device.imei ? ` · IMEI ${device.imei}` : ''}
+                          {device.imei2 ? ` · IMEI2 ${device.imei2}` : ''}
+                          {device.serialNumber ? ` · Serial ${device.serialNumber}` : ''}
+                          {device.storage ? ` · ${device.storage}` : ''}
+                          {device.color ? ` · ${device.color}` : ''}
+                          {device.batteryHealth !== undefined ? ` · Battery ${device.batteryHealth}%` : ''}
+                          {device.condition ? ` · ${device.condition}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : <p className="mt-1 text-xs text-fg-muted">No unit details recorded</p>}
+                </td>
+                <td className="px-5 py-3">{record.quantity}</td>
+                <td className="px-5 py-3 font-semibold tabular-nums">{formatKES(record.quantity * record.unitCost)}</td>
+              </tr>
+            ))}
         </tbody>
       </table>
     </div>
@@ -722,8 +771,11 @@ export function Finance() {
         </div>
       </> : null}
 
-      {view === 'suppliers' ? <SectionCard title="Suppliers & stock history" description="Select a supplier to review all stock received, payments made and the current balance.">
+      {view === 'suppliers' ? <SectionCard title="Suppliers" description="Create suppliers, compare balances, and select one to review its stock and payment history.">
         {forms.suppliers}{supplierSummaryTable}{supplierTable}
+      </SectionCard> : null}
+      {view === 'stock' ? <SectionCard title="Receive & track stock" description="Choose a supplier, record each delivery, and capture identifiers and phone specifications when stock arrives.">
+        {forms.stock}{stockTable}
       </SectionCard> : null}
       {view === 'expenses' ? <SectionCard title="Operating expenses" description="Record business expenses and their VAT rates for reference.">
         {forms.expenses}
