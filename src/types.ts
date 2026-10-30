@@ -61,6 +61,7 @@ export interface Order {
   /** Accepted trade-in value applied as credit to the sale. */
   tradeInValue?: number
   tradeInDevice?: string
+  tradeInDetails?: DeviceDetails & { device: string }
   /** VAT rate selected for the sale, in percent. */
   vatRate?: number
   /** VAT amount captured at sale time. */
@@ -112,6 +113,24 @@ export interface SupplierRecord {
   unitsSold: number
   settledAmount: number
   note?: string
+  deviceDetails?: DeviceDetails[]
+}
+
+export interface SupplierPayment {
+  id: string
+  supplier: string
+  amount: number
+  paidAt: string
+}
+
+export interface DeviceDetails {
+  imei?: string
+  imei2?: string
+  serialNumber?: string
+  color?: string
+  storage?: string
+  batteryHealth?: number
+  condition?: string
 }
 
 export interface ExpenseRecord {
@@ -134,23 +153,13 @@ export interface BusinessInvoice {
   note?: string
 }
 
-export interface TradeInRecord {
+export interface TradeInRecord extends DeviceDetails {
   id: string
   receivedAt: string
   customer: string
   device: string
-  imei?: string
   condition: string
   value: number
   saleReference?: string
   note?: string
-}
-
-export interface VatRecord {
-  id: string
-  date: string
-  kind: 'output' | 'input'
-  reference: string
-  taxableAmount: number
-  vatRate: number
 }

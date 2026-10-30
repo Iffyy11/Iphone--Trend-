@@ -171,6 +171,18 @@ export function ReceiptPrint({ order }: { order: Order }) {
               </div> : null}
             </div>
           ) : null}
+          {order.tradeInDetails ? (
+            <div className="mb-3 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 font-sans text-[10px] leading-relaxed text-slate-600 print:bg-slate-50">
+              <p className="mb-1 font-semibold text-slate-800">Trade-in phone · {order.tradeInDetails.device}</p>
+              {order.tradeInDetails.imei ? <p><span className="font-semibold text-slate-500">IMEI</span> {order.tradeInDetails.imei}</p> : null}
+              {order.tradeInDetails.imei2 ? <p><span className="font-semibold text-slate-500">IMEI2</span> {order.tradeInDetails.imei2}</p> : null}
+              {order.tradeInDetails.serialNumber ? <p><span className="font-semibold text-slate-500">Serial</span> {order.tradeInDetails.serialNumber}</p> : null}
+              {order.tradeInDetails.storage ? <p><span className="font-semibold text-slate-500">Storage</span> {order.tradeInDetails.storage}</p> : null}
+              {order.tradeInDetails.color ? <p><span className="font-semibold text-slate-500">Color</span> {order.tradeInDetails.color}</p> : null}
+              {order.tradeInDetails.batteryHealth !== undefined ? <p><span className="font-semibold text-slate-500">Battery health</span> {order.tradeInDetails.batteryHealth}%</p> : null}
+              {order.tradeInDetails.condition ? <p><span className="font-semibold text-slate-500">Condition</span> {order.tradeInDetails.condition}</p> : null}
+            </div>
+          ) : null}
           <div className="flex items-baseline justify-between gap-2 font-sans">
             <span className="text-xs font-bold uppercase tracking-wide text-slate-900">Total</span>
             <span className="font-mono text-lg font-bold tabular-nums text-slate-900">

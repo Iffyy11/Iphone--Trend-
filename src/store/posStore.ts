@@ -12,10 +12,10 @@ import type {
   PaymentMethod,
   Product,
   SupplierRecord,
+  SupplierPayment,
   ExpenseRecord,
   BusinessInvoice,
   TradeInRecord,
-  VatRecord,
   UserRole,
 } from '../types'
 
@@ -64,10 +64,10 @@ interface PosState {
   orders: Order[]
   suppliers: string[]
   supplierRecords: SupplierRecord[]
+  supplierPayments: SupplierPayment[]
   expenses: ExpenseRecord[]
   invoices: BusinessInvoice[]
   tradeIns: TradeInRecord[]
-  vatRecords: VatRecord[]
   session: Session
   adminAccount: AdminAccount | null
   cashiers: CashierAccount[]
@@ -92,13 +92,11 @@ interface PosState {
   updateProductCostPrice: (id: string, costPrice: number | undefined) => void
   addSupplier: (name: string) => void
   addSupplierRecord: (input: Omit<SupplierRecord, 'id' | 'unitsSold' | 'settledAmount'>) => void
-  updateSupplierUnitsSold: (id: string, unitsSold: number) => void
-  addSupplierSettlement: (id: string, amount: number) => void
+  addSupplierSettlement: (supplier: string, amount: number) => void
   addExpense: (input: Omit<ExpenseRecord, 'id'>) => void
   addInvoice: (input: Omit<BusinessInvoice, 'id' | 'paidAmount'>) => void
   addInvoicePayment: (id: string, amount: number) => void
   addTradeIn: (input: Omit<TradeInRecord, 'id'>) => void
-  addVatRecord: (input: Omit<VatRecord, 'id'>) => void
   addOrder: (input: {
     lines: OrderLine[]
     paymentMethod: PaymentMethod
@@ -124,10 +122,10 @@ export const usePosStore = create<PosState>()(
       orders: [],
       suppliers: [],
       supplierRecords: [],
+      supplierPayments: [],
       expenses: [],
       invoices: [],
       tradeIns: [],
-      vatRecords: [],
       session: defaultSession,
       adminAccount: null,
       cashiers: [],
@@ -349,7 +347,12 @@ export const usePosStore = create<PosState>()(
           !Number.isInteger(input.quantity) ||
           input.quantity < 1 ||
           !Number.isFinite(input.unitCost) ||
-          input.unitCost < 0
+          input.unitCost < 0 ||
+          (input.deviceDetails !== undefined && input.deviceDetails.length !== input.quantity) ||
+          input.deviceDetails?.some((device) =>
+            device.batteryHealth !== undefined &&
+            (!Number.isInteger(device.batteryHealth) || device.batteryHealth < 0 || device.batteryHealth > 100),
+          )
         ) return
         set((s) => ({
           suppliers: s.suppliers.some((item) => item.toLocaleLowerCase() === input.supplier.trim().toLocaleLowerCase())
@@ -359,27 +362,41 @@ export const usePosStore = create<PosState>()(
         }))
       },
 
-      updateSupplierUnitsSold(id, unitsSold) {
-        if (!Number.isInteger(unitsSold) || unitsSold < 0) return
-        set((s) => ({
-          supplierRecords: s.supplierRecords.map((r) => {
-            if (r.id !== id || r.kind !== 'consignment' || unitsSold > r.quantity) return r
-            const due = unitsSold * r.unitCost
-            return due < r.settledAmount ? r : { ...r, unitsSold }
-          }),
-        }))
-      },
+      addSupplierSettlement(supplier, amount) {
+        const supplierName = supplier.trim()
+        if (!supplierName || !Number.isInteger(amount) || amount <= 0) return
+        set((s) => {
+          const matchingRecords = s.supplierRecords
+            .filter((record) => record.supplier.toLocaleLowerCase() === supplierName.toLocaleLowerCase())
+            .sort((a, b) => a.receivedAt.localeCompare(b.receivedAt))
+          const totalOutstanding = matchingRecords.reduce((sum, record) => {
+            const obligation = (record.kind === 'consignment' ? record.unitsSold : record.quantity) * record.unitCost
+            return sum + Math.max(0, obligation - record.settledAmount)
+          }, 0)
+          if (amount > totalOutstanding) return s
 
-      addSupplierSettlement(id, amount) {
-        if (!Number.isFinite(amount) || amount <= 0) return
-        set((s) => ({
-          supplierRecords: s.supplierRecords.map((r) => {
-            if (r.id !== id) return r
-            const obligation = (r.kind === 'credit' ? r.quantity : r.unitsSold) * r.unitCost
-            if (r.settledAmount + amount > obligation) return r
-            return { ...r, settledAmount: r.settledAmount + amount }
-          }),
-        }))
+          let remaining = amount
+          const amountsByRecord = new Map<string, number>()
+          for (const record of matchingRecords) {
+            if (!remaining) break
+            const obligation = (record.kind === 'consignment' ? record.unitsSold : record.quantity) * record.unitCost
+            const allocation = Math.min(remaining, Math.max(0, obligation - record.settledAmount))
+            amountsByRecord.set(record.id, allocation)
+            remaining -= allocation
+          }
+          return {
+            supplierRecords: s.supplierRecords.map((record) => ({
+              ...record,
+              settledAmount: record.settledAmount + (amountsByRecord.get(record.id) ?? 0),
+            })),
+            supplierPayments: [{
+              id: newId(),
+              supplier: supplierName,
+              amount,
+              paidAt: new Date().toISOString(),
+            }, ...s.supplierPayments],
+          }
+        })
       },
 
       addExpense(input) {
@@ -427,18 +444,6 @@ export const usePosStore = create<PosState>()(
         set((s) => ({ tradeIns: [{ ...input, id: newId() }, ...s.tradeIns] }))
       },
 
-      addVatRecord(input) {
-        if (
-          !input.reference.trim() ||
-          !Number.isFinite(input.taxableAmount) ||
-          input.taxableAmount < 0 ||
-          !Number.isFinite(input.vatRate) ||
-          input.vatRate < 0 ||
-          input.vatRate > 100
-        ) return
-        set((s) => ({ vatRecords: [{ ...input, id: newId() }, ...s.vatRecords] }))
-      },
-
       addOrder({
         lines,
         paymentMethod,
@@ -469,7 +474,16 @@ export const usePosStore = create<PosState>()(
           !Number.isFinite(rawTradeInValue) ||
           rawTradeInValue < 0 ||
           (tradeIn !== undefined && rawTradeInValue <= 0) ||
-          (tradeIn !== undefined && (!tradeIn.customer.trim() || !tradeIn.device.trim() || !tradeIn.condition.trim()))
+          (tradeIn !== undefined && (
+            !tradeIn.customer.trim() ||
+            !tradeIn.device.trim() ||
+            !tradeIn.condition.trim() ||
+            (tradeIn.batteryHealth !== undefined && (
+              !Number.isInteger(tradeIn.batteryHealth) ||
+              tradeIn.batteryHealth < 0 ||
+              tradeIn.batteryHealth > 100
+            ))
+          ))
         ) return null
         const tradeInValue = Math.round(rawTradeInValue)
         if (tradeInValue > taxableAmount) return null
@@ -492,7 +506,22 @@ export const usePosStore = create<PosState>()(
           ...(off > 0 || tradeInValue > 0 || vatRate > 0
             ? { subtotal, ...(off > 0 ? { discount: off } : {}) }
             : {}),
-          ...(tradeInValue > 0 ? { tradeInValue, tradeInDevice: tradeIn?.device.trim() } : {}),
+          ...(tradeInValue > 0 && tradeIn
+            ? {
+                tradeInValue,
+                tradeInDevice: tradeIn.device.trim(),
+                tradeInDetails: {
+                  device: tradeIn.device.trim(),
+                  imei: tradeIn.imei?.trim() || undefined,
+                  imei2: tradeIn.imei2?.trim() || undefined,
+                  serialNumber: tradeIn.serialNumber?.trim() || undefined,
+                  color: tradeIn.color?.trim() || undefined,
+                  storage: tradeIn.storage?.trim() || undefined,
+                  batteryHealth: tradeIn.batteryHealth,
+                  condition: tradeIn.condition.trim(),
+                },
+              }
+            : {}),
           ...(vat
             ? { vatRate, vatAmount, vatInclusive: vat?.inclusive ?? false }
             : {}),
@@ -509,21 +538,6 @@ export const usePosStore = create<PosState>()(
         }
         set((s) => ({
           orders: [order, ...s.orders],
-          ...(vat
-            ? {
-                vatRecords: [
-                  {
-                    id: newId(),
-                    date: saleDate.toISOString(),
-                    kind: 'output' as const,
-                    reference: orderId,
-                    taxableAmount,
-                    vatRate,
-                  },
-                  ...s.vatRecords,
-                ],
-              }
-            : {}),
           ...(tradeInValue > 0 && tradeIn
             ? {
                 tradeIns: [
@@ -554,7 +568,7 @@ export const usePosStore = create<PosState>()(
     }),
     {
       name: 'iphone-trend-pos',
-      version: 2,
+      version: 4,
       migrate: (persistedState, version) => {
         const state = persistedState as PosState
         if (version < 1 && Array.isArray(state.products)) {
@@ -576,6 +590,12 @@ export const usePosStore = create<PosState>()(
               ...(state.supplierRecords ?? []).map((record) => record.supplier),
             ]),
           ]
+        }
+        if (version < 3) {
+          state.supplierPayments = []
+        }
+        if (version < 4) {
+          delete (state as PosState & { vatRecords?: unknown }).vatRecords
         }
         return state
       },
@@ -608,10 +628,10 @@ export const usePosStore = create<PosState>()(
         orders: s.orders,
         suppliers: s.suppliers,
         supplierRecords: s.supplierRecords,
+        supplierPayments: s.supplierPayments,
         expenses: s.expenses,
         invoices: s.invoices,
         tradeIns: s.tradeIns,
-        vatRecords: s.vatRecords,
         adminAccount: s.adminAccount,
         cashiers: s.cashiers,
       }),

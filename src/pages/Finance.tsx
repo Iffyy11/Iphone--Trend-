@@ -2,6 +2,8 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Banknote,
+  Download,
+  FileSpreadsheet,
   Plus,
   Receipt,
   Wallet,
@@ -9,9 +11,30 @@ import {
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { formatKES } from '../lib/format'
 import { usePosStore } from '../store/posStore'
-import type { SupplierRecordKind } from '../types'
 
-type FinanceView = 'summary' | 'suppliers' | 'expenses' | 'invoices' | 'trade-ins' | 'vat'
+type SupplierDeviceDraft = {
+  imei: string
+  imei2: string
+  serialNumber: string
+  color: string
+  storage: string
+  batteryHealth: string
+  condition: string
+}
+
+function emptySupplierDevice(): SupplierDeviceDraft {
+  return {
+    imei: '',
+    imei2: '',
+    serialNumber: '',
+    color: '',
+    storage: '',
+    batteryHealth: '',
+    condition: '',
+  }
+}
+
+type FinanceView = 'summary' | 'suppliers' | 'expenses' | 'invoices' | 'trade-ins'
 
 const VIEWS: { id: FinanceView; label: string }[] = [
   { id: 'summary', label: 'Profit & reports' },
@@ -19,7 +42,6 @@ const VIEWS: { id: FinanceView; label: string }[] = [
   { id: 'expenses', label: 'Expenses' },
   { id: 'invoices', label: 'Invoices' },
   { id: 'trade-ins', label: 'Trade-ins' },
-  { id: 'vat', label: 'VAT records' },
 ]
 
 function todayDate() {
@@ -97,24 +119,21 @@ function Metric({
 export function Finance() {
   const orders = usePosStore((s) => s.orders)
   const supplierRecords = usePosStore((s) => s.supplierRecords)
+  const supplierPayments = usePosStore((s) => s.supplierPayments)
   const savedSupplierNames = usePosStore((s) => s.suppliers)
   const expenses = usePosStore((s) => s.expenses)
   const invoices = usePosStore((s) => s.invoices)
   const tradeIns = usePosStore((s) => s.tradeIns)
-  const vatRecords = usePosStore((s) => s.vatRecords)
   const addSupplier = usePosStore((s) => s.addSupplier)
   const addSupplierRecord = usePosStore((s) => s.addSupplierRecord)
-  const updateSupplierUnitsSold = usePosStore((s) => s.updateSupplierUnitsSold)
   const addSupplierSettlement = usePosStore((s) => s.addSupplierSettlement)
   const addExpense = usePosStore((s) => s.addExpense)
   const addInvoice = usePosStore((s) => s.addInvoice)
   const addInvoicePayment = usePosStore((s) => s.addInvoicePayment)
   const addTradeIn = usePosStore((s) => s.addTradeIn)
-  const addVatRecord = usePosStore((s) => s.addVatRecord)
 
   const [view, setView] = useState<FinanceView>('summary')
   const [message, setMessage] = useState('')
-  const [supplierKind, setSupplierKind] = useState<SupplierRecordKind>('credit')
   const [supplier, setSupplier] = useState('')
   const [newSupplierName, setNewSupplierName] = useState('')
   const [supplierProduct, setSupplierProduct] = useState('')
@@ -123,6 +142,8 @@ export function Finance() {
   const [supplierReceived, setSupplierReceived] = useState(todayDate())
   const [supplierDue, setSupplierDue] = useState('')
   const [supplierNote, setSupplierNote] = useState('')
+  const [supplierDeviceDrafts, setSupplierDeviceDrafts] = useState<SupplierDeviceDraft[]>([])
+  const [supplierPaymentDraft, setSupplierPaymentDraft] = useState('')
   const [expenseDate, setExpenseDate] = useState(todayDate())
   const [expenseCategory, setExpenseCategory] = useState('')
   const [expenseDescription, setExpenseDescription] = useState('')
@@ -142,12 +163,6 @@ export function Finance() {
   const [tradeValue, setTradeValue] = useState('')
   const [tradeSale, setTradeSale] = useState('')
   const [tradeNote, setTradeNote] = useState('')
-  const [vatDate, setVatDate] = useState(todayDate())
-  const [vatKind, setVatKind] = useState<'output' | 'input'>('output')
-  const [vatReference, setVatReference] = useState('')
-  const [vatBase, setVatBase] = useState('')
-  const [vatRate, setVatRate] = useState('16')
-  const [settlementDrafts, setSettlementDrafts] = useState<Record<string, string>>({})
   const [invoicePaymentDrafts, setInvoicePaymentDrafts] = useState<Record<string, string>>({})
 
   const completedOrders = useMemo(
@@ -185,28 +200,31 @@ export function Finance() {
   const grossProfit = revenue - costReport.knownCost
   const netProfit = grossProfit - totalExpenses
   const supplierBalance = supplierRecords.reduce((sum, record) => {
-    const dueUnits = record.kind === 'credit' ? record.quantity : record.unitsSold
+    const dueUnits = record.kind === 'consignment' ? record.unitsSold : record.quantity
     return sum + Math.max(0, dueUnits * record.unitCost - record.settledAmount)
   }, 0)
   const supplierBalances = supplierNames.map((name) => ({
     name,
     balance: supplierRecords.reduce((sum, record) => {
       if (record.supplier.toLocaleLowerCase() !== name.toLocaleLowerCase()) return sum
-      const dueUnits = record.kind === 'credit' ? record.quantity : record.unitsSold
+      const dueUnits = record.kind === 'consignment' ? record.unitsSold : record.quantity
       return sum + Math.max(0, dueUnits * record.unitCost - record.settledAmount)
     }, 0),
   }))
+  const selectedSupplierRecords = supplierRecords.filter(
+    (record) => record.supplier.toLocaleLowerCase() === supplier.toLocaleLowerCase(),
+  )
+  const selectedSupplierPayments = supplierPayments.filter(
+    (payment) => payment.supplier.toLocaleLowerCase() === supplier.toLocaleLowerCase(),
+  )
+  const selectedSupplierBalance = selectedSupplierRecords.reduce(
+    (sum, record) => sum + supplierOutstanding(record),
+    0,
+  )
   const outstandingInvoices = invoices.reduce(
     (sum, invoice) => sum + Math.max(0, invoice.amount - invoice.paidAmount),
     0,
   )
-  const outputVat = vatRecords
-    .filter((record) => record.kind === 'output')
-    .reduce((sum, record) => sum + record.taxableAmount * record.vatRate / 100, 0)
-  const inputVat = vatRecords
-    .filter((record) => record.kind === 'input')
-    .reduce((sum, record) => sum + record.taxableAmount * record.vatRate / 100, 0)
-
   function submit(event: FormEvent<HTMLFormElement>, save: () => void) {
     event.preventDefault()
     setMessage('')
@@ -217,12 +235,19 @@ export function Finance() {
     submit(event, () => {
       const qty = amount(supplierQty)
       const cost = amount(supplierCost)
-      if (!supplier || !supplierProduct.trim() || !Number.isInteger(qty) || qty < 1 || !Number.isFinite(cost) || cost < 0 || !supplierReceived) {
+      if (!supplier || !supplierProduct.trim() || !Number.isInteger(qty) || qty < 1 || qty > 100 || !Number.isFinite(cost) || cost < 0 || !supplierReceived) {
         setMessage('Select a supplier and enter a product, valid quantity, unit cost and received date.')
         return
       }
+      if (supplierDeviceDrafts.some((device) =>
+        device.batteryHealth !== '' &&
+        (!Number.isInteger(Number(device.batteryHealth)) || Number(device.batteryHealth) < 0 || Number(device.batteryHealth) > 100),
+      )) {
+        setMessage('Battery health must be a whole percentage from 0 to 100.')
+        return
+      }
       addSupplierRecord({
-        kind: supplierKind,
+        kind: 'credit',
         supplier,
         product: supplierProduct.trim(),
         quantity: qty,
@@ -230,15 +255,102 @@ export function Finance() {
         receivedAt: supplierReceived,
         dueDate: supplierDue || undefined,
         note: supplierNote.trim() || undefined,
+        deviceDetails: supplierDeviceDrafts.map((device) => ({
+          imei: device.imei.trim() || undefined,
+          imei2: device.imei2.trim() || undefined,
+          serialNumber: device.serialNumber.trim() || undefined,
+          color: device.color.trim() || undefined,
+          storage: device.storage.trim() || undefined,
+          batteryHealth: device.batteryHealth ? Number(device.batteryHealth) : undefined,
+          condition: device.condition || undefined,
+        })),
       })
-      setSupplier('')
       setSupplierProduct('')
       setSupplierQty('')
       setSupplierCost('')
       setSupplierDue('')
       setSupplierNote('')
+      setSupplierDeviceDrafts([])
       setMessage('Stock record saved.')
     })
+  }
+
+  function resizeSupplierDeviceDrafts(rawQty: string) {
+    setSupplierQty(rawQty)
+    const qty = Number(rawQty)
+    if (!Number.isInteger(qty) || qty < 1 || qty > 100) {
+      setSupplierDeviceDrafts([])
+      return
+    }
+    setSupplierDeviceDrafts((drafts) =>
+      Array.from({ length: qty }, (_, index) => drafts[index] ?? emptySupplierDevice()),
+    )
+  }
+
+  function saveSupplierPayment(event: FormEvent<HTMLFormElement>) {
+    submit(event, () => {
+      const value = amount(supplierPaymentDraft)
+      if (!supplier || !Number.isInteger(value) || value <= 0 || value > selectedSupplierBalance) {
+        setMessage('Enter a payment greater than zero and no more than this supplier’s outstanding balance.')
+        return
+      }
+      addSupplierSettlement(supplier, Math.round(value))
+      setSupplierPaymentDraft('')
+      setMessage(`Payment recorded for ${supplier}.`)
+    })
+  }
+
+  function downloadSupplierHistory() {
+    if (!supplier) return
+    const escapeCsv = (value: string | number) => {
+      const text = typeof value === 'string' && /^[\s]*[=+\-@]/.test(value)
+        ? `'${value}`
+        : String(value)
+      return `"${text.replace(/"/g, '""')}"`
+    }
+    const rows: (string | number)[][] = [
+      ['Supplier', 'Date', 'Activity', 'Reference / details', 'Quantity', 'Amount (KSh)', 'Settled (KSh)', 'Balance (KSh)'],
+      ...selectedSupplierRecords.map((record) => {
+        const obligation = (record.kind === 'consignment' ? record.unitsSold : record.quantity) * record.unitCost
+        return [
+          supplier,
+          record.receivedAt,
+          'Stock received',
+          `${record.id} · ${record.product}${record.note ? ` — ${record.note}` : ''}${record.deviceDetails?.length ? ` — ${record.deviceDetails.map((device, index) => `Unit ${index + 1}: ${[
+            device.imei ? `IMEI ${device.imei}` : '',
+            device.imei2 ? `IMEI2 ${device.imei2}` : '',
+            device.serialNumber ? `Serial ${device.serialNumber}` : '',
+            device.storage ?? '',
+            device.color ?? '',
+            device.batteryHealth !== undefined ? `Battery ${device.batteryHealth}%` : '',
+            device.condition ?? '',
+          ].filter(Boolean).join(' ')}`).join('; ')}` : ''}`,
+          record.quantity,
+          obligation,
+          record.settledAmount,
+          supplierOutstanding(record),
+        ]
+      }),
+      ...selectedSupplierPayments.map((payment) => [
+        supplier,
+        payment.paidAt,
+        'Payment',
+        `Supplier settlement ${payment.id}`,
+        '',
+        -payment.amount,
+        payment.amount,
+        '',
+      ]),
+    ]
+    const csv = `\uFEFF${rows.map((row) => row.map(escapeCsv).join(',')).join('\r\n')}`
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `${supplier.replace(/[^a-z0-9-_]+/gi, '-')}-supplier-history.csv`
+    document.body.append(anchor)
+    anchor.click()
+    anchor.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
   function saveNewSupplier(event: FormEvent<HTMLFormElement>) {
@@ -337,27 +449,6 @@ export function Finance() {
     })
   }
 
-  function saveVat(event: FormEvent<HTMLFormElement>) {
-    submit(event, () => {
-      const base = amount(vatBase)
-      const rate = amount(vatRate)
-      if (!vatDate || !vatReference.trim() || !Number.isFinite(base) || base < 0 || !Number.isFinite(rate) || rate < 0 || rate > 100) {
-        setMessage('Enter a valid date, reference, taxable amount and VAT rate (0–100%).')
-        return
-      }
-      addVatRecord({
-        date: vatDate,
-        kind: vatKind,
-        reference: vatReference.trim(),
-        taxableAmount: Math.round(base),
-        vatRate: rate,
-      })
-      setVatReference('')
-      setVatBase('')
-      setMessage('VAT record saved.')
-    })
-  }
-
   const forms = {
     suppliers: (
       <>
@@ -368,12 +459,6 @@ export function Finance() {
         <button className="btn-secondary shrink-0" type="submit"><Plus className="h-4 w-4" /> Create supplier</button>
       </form>
       <form onSubmit={saveSupplier} className="grid gap-3 border-b border-line p-5 sm:grid-cols-2 lg:grid-cols-4">
-        <Field label="Record type">
-          <select value={supplierKind} onChange={(e) => setSupplierKind(e.target.value as SupplierRecordKind)} className="input">
-            <option value="credit">Supplier credit</option>
-            <option value="consignment">Consignment stock</option>
-          </select>
-        </Field>
         <Field label="Select supplier">
           <select required value={supplier} onChange={(e) => setSupplier(e.target.value)} className="input">
             <option value="">Choose a supplier</option>
@@ -381,13 +466,38 @@ export function Finance() {
           </select>
         </Field>
         <Field label="Product / stock"><input required value={supplierProduct} onChange={(e) => setSupplierProduct(e.target.value)} className="input" /></Field>
-        <Field label="Units received"><input required type="number" min="1" step="1" value={supplierQty} onChange={(e) => setSupplierQty(e.target.value)} className="input" /></Field>
+        <Field label="Units received"><input required type="number" min="1" max="100" step="1" value={supplierQty} onChange={(e) => resizeSupplierDeviceDrafts(e.target.value)} className="input" /></Field>
         <Field label="Cost per unit (KSh)"><input required type="number" min="0" step="1" value={supplierCost} onChange={(e) => setSupplierCost(e.target.value)} className="input" /></Field>
         <Field label="Received on"><input required type="date" value={supplierReceived} onChange={(e) => setSupplierReceived(e.target.value)} className="input" /></Field>
         <Field label="Due date (optional)"><input type="date" value={supplierDue} onChange={(e) => setSupplierDue(e.target.value)} className="input" /></Field>
         <Field label="Note (optional)"><input value={supplierNote} onChange={(e) => setSupplierNote(e.target.value)} className="input" /></Field>
         <div className="sm:col-span-2 lg:col-span-4"><button className="btn-primary" type="submit"><Plus className="h-4 w-4" /> Record stock</button></div>
       </form>
+      {supplierDeviceDrafts.length > 0 ? (
+        <div className="space-y-3 border-b border-line p-5">
+          <div>
+            <h3 className="text-sm font-semibold">Received device details</h3>
+            <p className="mt-1 text-xs text-fg-muted">Optional; enter identifiers and specifications for each unit received.</p>
+          </div>
+          {supplierDeviceDrafts.map((device, index) => (
+            <div key={index} className="rounded-xl border border-line p-3">
+              <p className="eyebrow mb-2">Unit {index + 1}</p>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <input aria-label={`IMEI for received unit ${index + 1}`} placeholder="IMEI" value={device.imei} onChange={(e) => setSupplierDeviceDrafts((drafts) => drafts.map((draft, i) => i === index ? { ...draft, imei: e.target.value } : draft))} className="input font-mono text-xs" />
+                <input aria-label={`IMEI2 for received unit ${index + 1}`} placeholder="IMEI2 (optional)" value={device.imei2} onChange={(e) => setSupplierDeviceDrafts((drafts) => drafts.map((draft, i) => i === index ? { ...draft, imei2: e.target.value } : draft))} className="input font-mono text-xs" />
+                <input aria-label={`Serial number for received unit ${index + 1}`} placeholder="Serial number" value={device.serialNumber} onChange={(e) => setSupplierDeviceDrafts((drafts) => drafts.map((draft, i) => i === index ? { ...draft, serialNumber: e.target.value } : draft))} className="input font-mono text-xs" />
+                <input aria-label={`Color for received unit ${index + 1}`} placeholder="Color" value={device.color} onChange={(e) => setSupplierDeviceDrafts((drafts) => drafts.map((draft, i) => i === index ? { ...draft, color: e.target.value } : draft))} className="input text-xs" />
+                <input aria-label={`Storage for received unit ${index + 1}`} placeholder="Storage (e.g. 128GB)" value={device.storage} onChange={(e) => setSupplierDeviceDrafts((drafts) => drafts.map((draft, i) => i === index ? { ...draft, storage: e.target.value } : draft))} className="input text-xs" />
+                <input aria-label={`Battery health for received unit ${index + 1}`} placeholder="Battery health %" type="number" min="0" max="100" step="1" value={device.batteryHealth} onChange={(e) => setSupplierDeviceDrafts((drafts) => drafts.map((draft, i) => i === index ? { ...draft, batteryHealth: e.target.value } : draft))} className="input text-xs" />
+                <select aria-label={`Condition for received unit ${index + 1}`} value={device.condition} onChange={(e) => setSupplierDeviceDrafts((drafts) => drafts.map((draft, i) => i === index ? { ...draft, condition: e.target.value } : draft))} className="input text-xs">
+                  <option value="">Condition (optional)</option>
+                  {['New', 'Excellent', 'Good', 'Fair', 'Poor', 'For parts'].map((condition) => <option key={condition}>{condition}</option>)}
+                </select>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
       </>
     ),
     expenses: (
@@ -428,25 +538,10 @@ export function Finance() {
         <div className="flex items-end"><button className="btn-primary" type="submit"><Plus className="h-4 w-4" /> Record trade-in</button></div>
       </form>
     ),
-    vat: (
-      <form onSubmit={saveVat} className="grid gap-3 border-b border-line p-5 sm:grid-cols-2 lg:grid-cols-3">
-        <Field label="Date"><input required type="date" value={vatDate} onChange={(e) => setVatDate(e.target.value)} className="input" /></Field>
-        <Field label="VAT type">
-          <select value={vatKind} onChange={(e) => setVatKind(e.target.value as 'output' | 'input')} className="input">
-            <option value="output">Output VAT · sales</option>
-            <option value="input">Input VAT · purchases</option>
-          </select>
-        </Field>
-        <Field label="Receipt / invoice reference"><input required value={vatReference} onChange={(e) => setVatReference(e.target.value)} className="input" /></Field>
-        <Field label="Taxable amount before VAT (KSh)"><input required type="number" min="0" step="1" value={vatBase} onChange={(e) => setVatBase(e.target.value)} className="input" /></Field>
-        <Field label="VAT rate (%)"><input required type="number" min="0" max="100" step="0.01" value={vatRate} onChange={(e) => setVatRate(e.target.value)} className="input" /></Field>
-        <div className="flex items-end"><button className="btn-primary" type="submit"><Plus className="h-4 w-4" /> Add VAT record</button></div>
-      </form>
-    ),
   }
 
   function supplierOutstanding(record: (typeof supplierRecords)[number]) {
-    const dueUnits = record.kind === 'credit' ? record.quantity : record.unitsSold
+    const dueUnits = record.kind === 'consignment' ? record.unitsSold : record.quantity
     return Math.max(0, dueUnits * record.unitCost - record.settledAmount)
   }
 
@@ -454,62 +549,114 @@ export function Finance() {
     <div className="overflow-x-auto border-b border-line">
       <table className="w-full min-w-[420px] text-left text-sm">
         <thead className="table-head"><tr>
-          <th className="px-5 py-3">Supplier</th><th className="px-5 py-3">Outstanding balance</th>
+          <th className="px-5 py-3">Supplier</th><th className="px-5 py-3">Total received</th><th className="px-5 py-3">Total paid</th><th className="px-5 py-3">Balance</th>
         </tr></thead>
         <tbody className="divide-y divide-line">
           {supplierBalances.length === 0
-            ? <tr><td colSpan={2} className="px-5 py-6 text-center text-fg-muted">Create a supplier to start tracking balances.</td></tr>
-            : supplierBalances.map(({ name, balance }) => (
-              <tr key={name}>
-                <td className="px-5 py-3 font-medium">{name}</td>
+            ? <tr><td colSpan={4} className="px-5 py-6 text-center text-fg-muted">Create a supplier to start tracking balances.</td></tr>
+            : supplierBalances.map(({ name, balance }) => {
+              const records = supplierRecords.filter((record) => record.supplier.toLocaleLowerCase() === name.toLocaleLowerCase())
+              const received = records.reduce((sum, record) => sum + (record.kind === 'consignment' ? record.unitsSold : record.quantity) * record.unitCost, 0)
+              const settled = records.reduce((sum, record) => sum + record.settledAmount, 0)
+              return (
+              <tr key={name} className={supplier === name ? 'bg-accent/5' : ''}>
+                <td className="px-5 py-3">
+                  <button type="button" onClick={() => setSupplier(name)} className="font-medium text-accent hover:underline">{name}</button>
+                </td>
+                <td className="px-5 py-3 tabular-nums">{formatKES(received)}</td>
+                <td className="px-5 py-3 tabular-nums">{formatKES(settled)}</td>
                 <td className={`px-5 py-3 font-semibold tabular-nums ${balance ? 'text-warning' : 'text-success'}`}>{formatKES(balance)}</td>
               </tr>
-            ))}
+            )})}
         </tbody>
       </table>
     </div>
   )
 
   const supplierTable = (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[900px] text-left text-sm">
-        <thead className="table-head"><tr>
-          <th className="px-5 py-3">Type / supplier</th><th className="px-5 py-3">Product</th>
-          <th className="px-5 py-3">Received / due</th><th className="px-5 py-3">Units</th>
-          <th className="px-5 py-3">Obligation</th><th className="px-5 py-3">Settled</th><th className="px-5 py-3">Balance / action</th>
-        </tr></thead>
-        <tbody className="divide-y divide-line">
-          {supplierRecords.length === 0 ? <tr><td colSpan={7} className="px-5 py-8 text-center text-fg-muted">No supplier stock records yet.</td></tr> : supplierRecords.map((record) => {
-            const balance = supplierOutstanding(record)
-            const obligation = (record.kind === 'credit' ? record.quantity : record.unitsSold) * record.unitCost
-            return <tr key={record.id}>
-              <td className="px-5 py-3"><p className="font-medium">{record.supplier}</p><span className="badge-neutral capitalize">{record.kind}</span></td>
-              <td className="px-5 py-3">{record.product}<p className="text-xs text-fg-muted">{formatKES(record.unitCost)} each</p></td>
-              <td className="px-5 py-3 text-xs text-fg-muted">{dateLabel(record.receivedAt)}{record.dueDate ? <p>Due {dateLabel(record.dueDate)}</p> : null}</td>
-              <td className="px-5 py-3">
-                {record.kind === 'consignment' ? <label className="text-xs text-fg-muted">Sold <input aria-label={`Units sold for ${record.product}`} type="number" min={Math.ceil(record.settledAmount / (record.unitCost || 1))} max={record.quantity} step="1" value={record.unitsSold} onChange={(e) => updateSupplierUnitsSold(record.id, Number(e.target.value))} className="input ml-1 w-20 px-2 py-1" /> / {record.quantity}</label> : `${record.quantity} received`}
-              </td>
-              <td className="px-5 py-3 tabular-nums">{formatKES(obligation)}</td><td className="px-5 py-3 tabular-nums">{formatKES(record.settledAmount)}</td>
-              <td className="px-5 py-3">
-                <p className={`font-semibold tabular-nums ${balance ? 'text-warning' : 'text-success'}`}>{formatKES(balance)}</p>
-                {balance > 0 ? <form className="mt-2 flex gap-1" onSubmit={(e) => {
-                  e.preventDefault()
-                  const value = amount(settlementDrafts[record.id] ?? '')
-                  if (!Number.isFinite(value) || value <= 0 || value > balance) {
-                    setMessage('Settlement must be greater than zero and no more than the outstanding balance.')
-                    return
-                  }
-                  addSupplierSettlement(record.id, Math.round(value))
-                  setSettlementDrafts((drafts) => ({ ...drafts, [record.id]: '' }))
-                }}>
-                  <input aria-label={`Settlement amount for ${record.supplier}`} type="number" min="1" max={balance} step="1" value={settlementDrafts[record.id] ?? ''} onChange={(e) => setSettlementDrafts((drafts) => ({ ...drafts, [record.id]: e.target.value }))} placeholder="Amount" className="input w-28 px-2 py-1" />
-                  <button type="submit" className="btn-secondary px-2 py-1 text-xs">Settle</button>
-                </form> : null}
-              </td>
-            </tr>
-          })}
-        </tbody>
-      </table>
+    <div className="space-y-5 p-5">
+      {!supplier ? <p className="text-sm text-fg-muted">Choose a supplier above to view their full history and balance.</p> : (
+        <>
+          <div className="flex flex-col justify-between gap-4 rounded-xl border border-line bg-subtle/40 p-4 sm:flex-row sm:items-center">
+            <div>
+              <p className="eyebrow">Supplier account</p>
+              <h3 className="mt-1 text-lg font-semibold">{supplier}</h3>
+              <p className="mt-1 text-sm text-fg-muted">Outstanding balance: <span className="font-semibold tabular-nums text-fg">{formatKES(selectedSupplierBalance)}</span></p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <form onSubmit={saveSupplierPayment} className="flex gap-2">
+                <input aria-label={`Payment to ${supplier}`} type="number" min="1" max={selectedSupplierBalance} step="1" value={supplierPaymentDraft} onChange={(e) => setSupplierPaymentDraft(e.target.value)} placeholder="Settled amount" className="input w-36" />
+                <button type="submit" disabled={selectedSupplierBalance <= 0} className="btn-primary">Add payment</button>
+              </form>
+              <button type="button" onClick={downloadSupplierHistory} className="btn-secondary">
+                <Download className="h-4 w-4" /> Export Excel CSV
+              </button>
+            </div>
+          </div>
+          <section>
+            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold"><FileSpreadsheet className="h-4 w-4 text-accent" /> Stock received history</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="table-head"><tr>
+                  <th className="px-4 py-3">Date / reference</th><th className="px-4 py-3">Product</th><th className="px-4 py-3">Units</th><th className="px-4 py-3">Received total</th><th className="px-4 py-3">Settled</th><th className="px-4 py-3">Balance</th>
+                </tr></thead>
+                <tbody className="divide-y divide-line">
+                  {selectedSupplierRecords.length === 0
+                    ? <tr><td colSpan={6} className="px-4 py-6 text-center text-fg-muted">No stock history for this supplier yet.</td></tr>
+                    : selectedSupplierRecords.map((record) => {
+                      const obligation = (record.kind === 'consignment' ? record.unitsSold : record.quantity) * record.unitCost
+                      return <tr key={record.id}>
+                        <td className="px-4 py-3 text-xs text-fg-muted">{dateLabel(record.receivedAt)}<p className="font-mono">{record.id.slice(0, 8)}</p>{record.dueDate ? <p>Due {dateLabel(record.dueDate)}</p> : null}</td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium">{record.product}</p>
+                          <p className="text-xs text-fg-muted">{formatKES(record.unitCost)} each{record.note ? ` · ${record.note}` : ''}</p>
+                          {record.deviceDetails?.some((device) =>
+                            device.imei || device.imei2 || device.serialNumber || device.storage ||
+                            device.color || device.batteryHealth !== undefined || device.condition,
+                          ) ? (
+                            <ul className="mt-2 space-y-1 text-xs text-fg-muted">
+                              {record.deviceDetails.map((device, index) => (
+                                <li key={index}>
+                                  Unit {index + 1}
+                                  {device.imei ? ` · IMEI ${device.imei}` : ''}
+                                  {device.imei2 ? ` · IMEI2 ${device.imei2}` : ''}
+                                  {device.serialNumber ? ` · S/N ${device.serialNumber}` : ''}
+                                  {device.storage ? ` · ${device.storage}` : ''}
+                                  {device.color ? ` · ${device.color}` : ''}
+                                  {device.batteryHealth !== undefined ? ` · Battery ${device.batteryHealth}%` : ''}
+                                  {device.condition ? ` · ${device.condition}` : ''}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3">{record.quantity}</td>
+                        <td className="px-4 py-3 tabular-nums">{formatKES(obligation)}</td>
+                        <td className="px-4 py-3 tabular-nums">{formatKES(record.settledAmount)}</td>
+                        <td className="px-4 py-3 font-semibold tabular-nums">{formatKES(supplierOutstanding(record))}</td>
+                      </tr>
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <section>
+            <h3 className="mb-2 text-sm font-semibold">Payment history</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[420px] text-left text-sm">
+                <thead className="table-head"><tr><th className="px-4 py-3">Paid on</th><th className="px-4 py-3">Reference</th><th className="px-4 py-3">Amount</th></tr></thead>
+                <tbody className="divide-y divide-line">
+                  {selectedSupplierPayments.length === 0
+                    ? <tr><td colSpan={3} className="px-4 py-6 text-center text-fg-muted">No payment history saved yet. Earlier settlements remain included in the stock balances.</td></tr>
+                    : selectedSupplierPayments.map((payment) => (
+                      <tr key={payment.id}><td className="px-4 py-3">{new Date(payment.paidAt).toLocaleString('en-KE')}</td><td className="px-4 py-3 font-mono text-xs">{payment.id.slice(0, 8)}</td><td className="px-4 py-3 font-semibold tabular-nums">{formatKES(payment.amount)}</td></tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
+      )}
     </div>
   )
 
@@ -566,26 +713,19 @@ export function Finance() {
         </div>
         {costReport.uncostedUnits ? <p className="rounded-xl border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-fg-muted">Profit is an estimate and excludes product cost for {costReport.uncostedUnits} sold unit(s). Add purchase costs in Products; older sales without a cost snapshot remain uncosted.</p> : null}
         <div className="grid gap-4 md:grid-cols-2">
-          <SectionCard title="Supplier balances" description="Unsettled supplier credit and sold consignment stock">
+          <SectionCard title="Supplier balances" description="Outstanding amount due across all supplier stock accounts">
             <div className="p-5"><p className="text-2xl font-semibold tabular-nums">{formatKES(supplierBalance)}</p><p className="mt-1 text-sm text-fg-muted">{supplierRecords.length} stock records across {supplierNames.length} suppliers</p></div>
           </SectionCard>
           <SectionCard title="Accounts receivable" description="Outstanding customer invoice amounts">
             <div className="p-5"><p className="text-2xl font-semibold tabular-nums">{formatKES(outstandingInvoices)}</p><p className="mt-1 text-sm text-fg-muted">{invoices.filter((invoice) => invoice.amount > invoice.paidAmount).length} unpaid or partial invoices</p></div>
           </SectionCard>
         </div>
-        <SectionCard title="VAT position" description="Calculated from VAT records entered below; rates are set per record.">
-          <div className="grid gap-4 p-5 sm:grid-cols-3">
-            <div><p className="eyebrow">Output VAT</p><p className="mt-1 text-xl font-semibold tabular-nums">{formatKES(outputVat)}</p></div>
-            <div><p className="eyebrow">Input VAT</p><p className="mt-1 text-xl font-semibold tabular-nums">{formatKES(inputVat)}</p></div>
-            <div><p className="eyebrow">Net VAT (output − input)</p><p className="mt-1 text-xl font-semibold tabular-nums">{formatKES(outputVat - inputVat)}</p></div>
-          </div>
-        </SectionCard>
       </> : null}
 
-      {view === 'suppliers' ? <SectionCard title="Supplier credit & consignment" description="Credit is payable on all received units; consignment is payable only as units are marked sold. Settlements cannot exceed the current obligation.">
+      {view === 'suppliers' ? <SectionCard title="Suppliers & stock history" description="Select a supplier to review all stock received, payments made and the current balance.">
         {forms.suppliers}{supplierSummaryTable}{supplierTable}
       </SectionCard> : null}
-      {view === 'expenses' ? <SectionCard title="Operating expenses" description="Expense VAT rate is recorded for reference; VAT return totals are based on VAT records.">
+      {view === 'expenses' ? <SectionCard title="Operating expenses" description="Record business expenses and their VAT rates for reference.">
         {forms.expenses}
         <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-left text-sm">
           <thead className="table-head"><tr><th className="px-5 py-3">Date</th><th className="px-5 py-3">Category / description</th><th className="px-5 py-3">Amount</th><th className="px-5 py-3">VAT rate</th></tr></thead>
@@ -599,14 +739,7 @@ export function Finance() {
         {forms['trade-ins']}
         <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm">
           <thead className="table-head"><tr><th className="px-5 py-3">Date</th><th className="px-5 py-3">Customer</th><th className="px-5 py-3">Device / IMEI</th><th className="px-5 py-3">Condition</th><th className="px-5 py-3">Value</th><th className="px-5 py-3">Sale reference</th></tr></thead>
-          <tbody className="divide-y divide-line">{tradeIns.length === 0 ? <tr><td colSpan={6} className="px-5 py-8 text-center text-fg-muted">No trade-ins recorded yet.</td></tr> : tradeIns.map((trade) => <tr key={trade.id}><td className="px-5 py-3">{dateLabel(trade.receivedAt)}</td><td className="px-5 py-3 font-medium">{trade.customer}</td><td className="px-5 py-3">{trade.device}{trade.imei ? <p className="font-mono text-xs text-fg-muted">{trade.imei}</p> : null}</td><td className="px-5 py-3">{trade.condition}</td><td className="px-5 py-3 font-semibold tabular-nums">{formatKES(trade.value)}</td><td className="px-5 py-3">{trade.saleReference || '—'}</td></tr>)}</tbody>
-        </table></div>
-      </SectionCard> : null}
-      {view === 'vat' ? <SectionCard title="VAT records" description="VAT-enabled receipts create output VAT records automatically. You can also enter records manually; taxable amounts are exclusive of VAT.">
-        {forms.vat}
-        <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm">
-          <thead className="table-head"><tr><th className="px-5 py-3">Date / reference</th><th className="px-5 py-3">Type</th><th className="px-5 py-3">Taxable amount</th><th className="px-5 py-3">Rate</th><th className="px-5 py-3">VAT amount</th></tr></thead>
-          <tbody className="divide-y divide-line">{vatRecords.length === 0 ? <tr><td colSpan={5} className="px-5 py-8 text-center text-fg-muted">No VAT records entered yet.</td></tr> : vatRecords.map((record) => <tr key={record.id}><td className="px-5 py-3">{dateLabel(record.date)}<p className="text-xs text-fg-muted">{record.reference}</p></td><td className="px-5 py-3"><span className="inline-flex items-center gap-1.5 capitalize">{record.kind === 'output' ? <ArrowUpRight className="h-4 w-4 text-success" /> : <ArrowDownLeft className="h-4 w-4 text-accent" />}{record.kind}</span></td><td className="px-5 py-3 tabular-nums">{formatKES(record.taxableAmount)}</td><td className="px-5 py-3">{record.vatRate}%</td><td className="px-5 py-3 font-semibold tabular-nums">{formatKES(record.taxableAmount * record.vatRate / 100)}</td></tr>)}</tbody>
+          <tbody className="divide-y divide-line">{tradeIns.length === 0 ? <tr><td colSpan={6} className="px-5 py-8 text-center text-fg-muted">No trade-ins recorded yet.</td></tr> : tradeIns.map((trade) => <tr key={trade.id}><td className="px-5 py-3">{dateLabel(trade.receivedAt)}</td><td className="px-5 py-3 font-medium">{trade.customer}</td><td className="px-5 py-3">{trade.device}{trade.imei ? <p className="font-mono text-xs text-fg-muted">IMEI {trade.imei}</p> : null}{trade.imei2 ? <p className="font-mono text-xs text-fg-muted">IMEI2 {trade.imei2}</p> : null}{trade.serialNumber ? <p className="font-mono text-xs text-fg-muted">S/N {trade.serialNumber}</p> : null}{trade.storage || trade.color ? <p className="text-xs text-fg-muted">{[trade.storage, trade.color].filter(Boolean).join(' · ')}</p> : null}{trade.batteryHealth !== undefined ? <p className="text-xs text-fg-muted">Battery {trade.batteryHealth}%</p> : null}</td><td className="px-5 py-3">{trade.condition}</td><td className="px-5 py-3 font-semibold tabular-nums">{formatKES(trade.value)}</td><td className="px-5 py-3">{trade.saleReference || '—'}</td></tr>)}</tbody>
         </table></div>
       </SectionCard> : null}
       <p className="text-xs text-fg-subtle">Records are stored with this POS data on this device. Reports use all recorded dates and are operational summaries, not tax filings.</p>

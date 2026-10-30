@@ -78,6 +78,11 @@ export function Cashier() {
   const [tradeInOpen, setTradeInOpen] = useState(false)
   const [tradeInDevice, setTradeInDevice] = useState('')
   const [tradeInImei, setTradeInImei] = useState('')
+  const [tradeInImei2, setTradeInImei2] = useState('')
+  const [tradeInSerial, setTradeInSerial] = useState('')
+  const [tradeInColor, setTradeInColor] = useState('')
+  const [tradeInStorage, setTradeInStorage] = useState('')
+  const [tradeInBatteryHealth, setTradeInBatteryHealth] = useState('')
   const [tradeInCondition, setTradeInCondition] = useState('Good')
   const [tradeInInput, setTradeInInput] = useState('')
 
@@ -225,6 +230,8 @@ export function Cashier() {
   const tradeInError = tradeInOpen && (
     !tradeInDevice.trim()
       ? 'Enter the trade-in device model.'
+      : tradeInBatteryHealth && (!Number.isInteger(Number(tradeInBatteryHealth)) || Number(tradeInBatteryHealth) < 0 || Number(tradeInBatteryHealth) > 100)
+        ? 'Trade-in battery health must be a whole percentage from 0 to 100.'
       : !Number.isFinite(tradeInValue) || tradeInValue <= 0
         ? 'Enter a trade-in value greater than zero.'
         : tradeInValue > subtotal - discountAmount
@@ -244,6 +251,11 @@ export function Cashier() {
     setTradeInOpen(false)
     setTradeInDevice('')
     setTradeInImei('')
+    setTradeInImei2('')
+    setTradeInSerial('')
+    setTradeInColor('')
+    setTradeInStorage('')
+    setTradeInBatteryHealth('')
     setTradeInCondition('Good')
     setTradeInInput('')
   }
@@ -335,6 +347,11 @@ export function Cashier() {
             customer: customerName.trim(),
             device: tradeInDevice.trim(),
             imei: tradeInImei.trim() || undefined,
+            imei2: tradeInImei2.trim() || undefined,
+            serialNumber: tradeInSerial.trim() || undefined,
+            color: tradeInColor.trim() || undefined,
+            storage: tradeInStorage.trim() || undefined,
+            batteryHealth: tradeInBatteryHealth ? Number(tradeInBatteryHealth) : undefined,
             condition: tradeInCondition,
             value: Math.round(tradeInValue),
           }
@@ -737,6 +754,45 @@ export function Cashier() {
                 aria-label="Trade-in device IMEI"
                 className="input font-mono"
               />
+              <input
+                value={tradeInImei2}
+                onChange={(e) => setTradeInImei2(e.target.value)}
+                placeholder="IMEI2 (optional)"
+                aria-label="Trade-in device IMEI2"
+                className="input font-mono"
+              />
+              <input
+                value={tradeInSerial}
+                onChange={(e) => setTradeInSerial(e.target.value)}
+                placeholder="Serial number (optional)"
+                aria-label="Trade-in device serial number"
+                className="input font-mono"
+              />
+              <input
+                value={tradeInStorage}
+                onChange={(e) => setTradeInStorage(e.target.value)}
+                placeholder="Storage (optional)"
+                aria-label="Trade-in device storage"
+                className="input"
+              />
+              <input
+                value={tradeInColor}
+                onChange={(e) => setTradeInColor(e.target.value)}
+                placeholder="Color (optional)"
+                aria-label="Trade-in device color"
+                className="input"
+              />
+              <input
+                value={tradeInBatteryHealth}
+                onChange={(e) => setTradeInBatteryHealth(e.target.value)}
+                placeholder="Battery health % (optional)"
+                aria-label="Trade-in device battery health percentage"
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                className="input"
+              />
               <select
                 value={tradeInCondition}
                 onChange={(e) => setTradeInCondition(e.target.value)}
@@ -1048,6 +1104,18 @@ export function Cashier() {
                     <dd className="tabular-nums">− {formatKES(lastOrder.tradeInValue)}</dd>
                   </div> : null}
                 </dl>
+              ) : null}
+              {lastOrder.tradeInDetails ? (
+                <div className="mt-3 rounded-xl border border-line bg-subtle/50 p-3 text-xs text-fg-muted">
+                  <p className="mb-1 font-semibold text-fg">Trade-in phone details</p>
+                  {lastOrder.tradeInDetails.imei ? <p>IMEI <span className="font-mono text-fg">{lastOrder.tradeInDetails.imei}</span></p> : null}
+                  {lastOrder.tradeInDetails.imei2 ? <p>IMEI2 <span className="font-mono text-fg">{lastOrder.tradeInDetails.imei2}</span></p> : null}
+                  {lastOrder.tradeInDetails.serialNumber ? <p>Serial <span className="font-mono text-fg">{lastOrder.tradeInDetails.serialNumber}</span></p> : null}
+                  {lastOrder.tradeInDetails.storage ? <p>Storage <span className="text-fg">{lastOrder.tradeInDetails.storage}</span></p> : null}
+                  {lastOrder.tradeInDetails.color ? <p>Color <span className="text-fg">{lastOrder.tradeInDetails.color}</span></p> : null}
+                  {lastOrder.tradeInDetails.batteryHealth !== undefined ? <p>Battery health <span className="text-fg">{lastOrder.tradeInDetails.batteryHealth}%</span></p> : null}
+                  {lastOrder.tradeInDetails.condition ? <p>Condition <span className="text-fg">{lastOrder.tradeInDetails.condition}</span></p> : null}
+                </div>
               ) : null}
               <div className="mt-4 flex items-baseline justify-between">
                 <span className="text-sm capitalize text-fg-muted">Total · {lastOrder.paymentMethod}</span>
