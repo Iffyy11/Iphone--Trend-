@@ -36,8 +36,14 @@ export interface OrderLine {
   unitCost?: number
   /** Device IMEI (phones / tracked devices). */
   imei?: string
+  /** Second device IMEI, when available. */
+  imei2?: string
   /** Device serial number. */
   serialNumber?: string
+  color?: string
+  storage?: string
+  batteryHealth?: number
+  condition?: string
   /** Warranty length in months (0 = none). */
   warrantyMonths?: number
   /** ISO date when warranty ends (set at sale time). */

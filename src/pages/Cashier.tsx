@@ -21,7 +21,16 @@ import { PageHeader } from '../components/PageHeader'
 import { ReceiptPrint } from '../components/ReceiptPrint'
 import { usePosStore } from '../store/posStore'
 
-type DeviceDraft = { imei: string; serial: string; warrantyMonths: number }
+type DeviceDraft = {
+  imei: string
+  imei2: string
+  serial: string
+  color: string
+  storage: string
+  batteryHealth: string
+  condition: string
+  warrantyMonths: number
+}
 
 type CartLine = {
   rowId: string
@@ -93,7 +102,12 @@ export function Cashier() {
   function emptyDevice(): DeviceDraft {
     return {
       imei: '',
+      imei2: '',
       serial: '',
+      color: '',
+      storage: '',
+      batteryHealth: '',
+      condition: '',
       warrantyMonths: DEFAULT_PHONE_WARRANTY_MONTHS,
     }
   }
@@ -256,7 +270,12 @@ export function Cashier() {
           unitPrice: row.product.price,
           unitCost: row.product.costPrice,
           imei: d.imei.trim(),
+          imei2: d.imei2.trim() || undefined,
           serialNumber: d.serial.trim(),
+          color: d.color.trim() || undefined,
+          storage: d.storage.trim() || undefined,
+          batteryHealth: d.batteryHealth ? Number(d.batteryHealth) : undefined,
+          condition: d.condition.trim() || undefined,
           warrantyMonths: d.warrantyMonths,
         })
       }
@@ -285,6 +304,10 @@ export function Cashier() {
         }
         if (d.serial.trim().length < 4) {
           setCheckoutError(`Serial number missing for ${row.product.name} (unit ${i + 1}).`)
+          return
+        }
+        if (d.batteryHealth && (!Number.isInteger(Number(d.batteryHealth)) || Number(d.batteryHealth) < 0 || Number(d.batteryHealth) > 100)) {
+          setCheckoutError(`Battery health must be a whole percentage from 0 to 100 for ${row.product.name} (unit ${i + 1}).`)
           return
         }
       }
@@ -500,6 +523,50 @@ export function Cashier() {
                                 aria-label={`Serial number for device ${idx + 1}`}
                                 className="input px-3 py-2 font-mono text-xs"
                               />
+                              <input
+                                value={d.imei2}
+                                onChange={(e) => updateDevice(row.rowId, idx, { imei2: e.target.value })}
+                                placeholder="IMEI2 (optional)"
+                                aria-label={`IMEI2 for device ${idx + 1}`}
+                                inputMode="numeric"
+                                className="input px-3 py-2 font-mono text-xs"
+                              />
+                              <input
+                                value={d.color}
+                                onChange={(e) => updateDevice(row.rowId, idx, { color: e.target.value })}
+                                placeholder="Color"
+                                aria-label={`Color for device ${idx + 1}`}
+                                className="input px-3 py-2 text-xs"
+                              />
+                              <input
+                                value={d.storage}
+                                onChange={(e) => updateDevice(row.rowId, idx, { storage: e.target.value })}
+                                placeholder="Storage (e.g. 128GB)"
+                                aria-label={`Storage for device ${idx + 1}`}
+                                className="input px-3 py-2 text-xs"
+                              />
+                              <input
+                                value={d.batteryHealth}
+                                onChange={(e) => updateDevice(row.rowId, idx, { batteryHealth: e.target.value })}
+                                placeholder="Battery health %"
+                                aria-label={`Battery health percentage for device ${idx + 1}`}
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="1"
+                                className="input px-3 py-2 text-xs"
+                              />
+                              <select
+                                value={d.condition}
+                                onChange={(e) => updateDevice(row.rowId, idx, { condition: e.target.value })}
+                                aria-label={`Condition for device ${idx + 1}`}
+                                className="input px-3 py-2 text-xs"
+                              >
+                                <option value="">Select condition</option>
+                                {['New', 'Excellent', 'Good', 'Fair', 'Poor', 'For parts'].map((condition) => (
+                                  <option key={condition} value={condition}>{condition}</option>
+                                ))}
+                              </select>
                             </div>
                             <select
                               value={d.warrantyMonths}
@@ -932,14 +999,21 @@ export function Cashier() {
                       </span>
                       <span className="tabular-nums">{formatKES(l.unitPrice * l.qty)}</span>
                     </div>
-                    {l.imei || l.serialNumber || (l.warrantyMonths ?? 0) > 0 ? (
+                    {l.imei || l.imei2 || l.serialNumber || l.color || l.storage || l.batteryHealth !== undefined || l.condition || (l.warrantyMonths ?? 0) > 0 ? (
                       <div className="mt-1.5 space-y-0.5 text-xs text-fg-muted">
                         {l.imei?.trim() ? <p>
                           IMEI <span className="font-mono text-fg">{l.imei.trim()}</span>
                         </p> : null}
+                        {l.imei2?.trim() ? <p>
+                          IMEI2 <span className="font-mono text-fg">{l.imei2.trim()}</span>
+                        </p> : null}
                         <p>
                           Serial <span className="font-mono text-fg">{l.serialNumber?.trim() || '—'}</span>
                         </p>
+                        {l.color ? <p>Color <span className="text-fg">{l.color}</span></p> : null}
+                        {l.storage ? <p>Storage <span className="text-fg">{l.storage}</span></p> : null}
+                        {l.batteryHealth !== undefined ? <p>Battery health <span className="text-fg">{l.batteryHealth}%</span></p> : null}
+                        {l.condition ? <p>Condition <span className="text-fg">{l.condition}</span></p> : null}
                         <p>
                           Warranty{' '}
                           <span className="text-fg">

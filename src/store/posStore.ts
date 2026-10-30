@@ -40,6 +40,7 @@ export interface Session {
 interface PosState {
   products: Product[]
   orders: Order[]
+  suppliers: string[]
   supplierRecords: SupplierRecord[]
   expenses: ExpenseRecord[]
   invoices: BusinessInvoice[]
@@ -67,6 +68,7 @@ interface PosState {
   setProductActive: (id: string, active: boolean) => void
   updateProductPrice: (id: string, price: number) => void
   updateProductCostPrice: (id: string, costPrice: number | undefined) => void
+  addSupplier: (name: string) => void
   addSupplierRecord: (input: Omit<SupplierRecord, 'id' | 'unitsSold' | 'settledAmount'>) => void
   updateSupplierUnitsSold: (id: string, unitsSold: number) => void
   addSupplierSettlement: (id: string, amount: number) => void
@@ -98,6 +100,7 @@ export const usePosStore = create<PosState>()(
     (set, get) => ({
       products: seedProducts,
       orders: [],
+      suppliers: [],
       supplierRecords: [],
       expenses: [],
       invoices: [],
@@ -309,6 +312,14 @@ export const usePosStore = create<PosState>()(
         }))
       },
 
+      addSupplier(name) {
+        const supplier = name.trim()
+        if (!supplier) return
+        set((s) => s.suppliers.some((item) => item.toLocaleLowerCase() === supplier.toLocaleLowerCase())
+          ? s
+          : { suppliers: [...s.suppliers, supplier] })
+      },
+
       addSupplierRecord(input) {
         if (
           !input.supplier.trim() ||
@@ -319,6 +330,9 @@ export const usePosStore = create<PosState>()(
           input.unitCost < 0
         ) return
         set((s) => ({
+          suppliers: s.suppliers.some((item) => item.toLocaleLowerCase() === input.supplier.trim().toLocaleLowerCase())
+            ? s.suppliers
+            : [...s.suppliers, input.supplier.trim()],
           supplierRecords: [{ ...input, id: newId(), unitsSold: 0, settledAmount: 0 }, ...s.supplierRecords],
         }))
       },
@@ -518,7 +532,7 @@ export const usePosStore = create<PosState>()(
     }),
     {
       name: 'iphone-trend-pos',
-      version: 1,
+      version: 2,
       migrate: (persistedState, version) => {
         const state = persistedState as PosState
         if (version < 1 && Array.isArray(state.products)) {
@@ -531,6 +545,14 @@ export const usePosStore = create<PosState>()(
           state.products = [
             ...state.products.map((product) => updatesById.get(product.id) ?? product),
             ...updatedSeedProducts.filter((product) => !storedIds.has(product.id)),
+          ]
+        }
+        if (version < 2) {
+          state.suppliers = [
+            ...new Set([
+              ...(state.suppliers ?? []),
+              ...(state.supplierRecords ?? []).map((record) => record.supplier),
+            ]),
           ]
         }
         return state
@@ -553,6 +575,7 @@ export const usePosStore = create<PosState>()(
       partialize: (s) => ({
         products: s.products,
         orders: s.orders,
+        suppliers: s.suppliers,
         supplierRecords: s.supplierRecords,
         expenses: s.expenses,
         invoices: s.invoices,

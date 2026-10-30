@@ -96,11 +96,13 @@ function Metric({
 
 export function Finance() {
   const orders = usePosStore((s) => s.orders)
-  const suppliers = usePosStore((s) => s.supplierRecords)
+  const supplierRecords = usePosStore((s) => s.supplierRecords)
+  const savedSupplierNames = usePosStore((s) => s.suppliers)
   const expenses = usePosStore((s) => s.expenses)
   const invoices = usePosStore((s) => s.invoices)
   const tradeIns = usePosStore((s) => s.tradeIns)
   const vatRecords = usePosStore((s) => s.vatRecords)
+  const addSupplier = usePosStore((s) => s.addSupplier)
   const addSupplierRecord = usePosStore((s) => s.addSupplierRecord)
   const updateSupplierUnitsSold = usePosStore((s) => s.updateSupplierUnitsSold)
   const addSupplierSettlement = usePosStore((s) => s.addSupplierSettlement)
@@ -114,6 +116,7 @@ export function Finance() {
   const [message, setMessage] = useState('')
   const [supplierKind, setSupplierKind] = useState<SupplierRecordKind>('credit')
   const [supplier, setSupplier] = useState('')
+  const [newSupplierName, setNewSupplierName] = useState('')
   const [supplierProduct, setSupplierProduct] = useState('')
   const [supplierQty, setSupplierQty] = useState('')
   const [supplierCost, setSupplierCost] = useState('')
@@ -151,6 +154,13 @@ export function Finance() {
     () => orders.filter((order) => order.status === 'completed'),
     [orders],
   )
+  const supplierNames = useMemo(
+    () => [...new Set([
+      ...savedSupplierNames,
+      ...supplierRecords.map((record) => record.supplier),
+    ])].sort((a, b) => a.localeCompare(b)),
+    [savedSupplierNames, supplierRecords],
+  )
   const revenue = completedOrders.reduce((sum, order) => {
     const subtotal = order.subtotal ?? order.lines.reduce((lineSum, line) => lineSum + line.unitPrice * line.qty, 0)
     const salesAfterDiscount = Math.max(0, subtotal - (order.discount ?? 0))
@@ -174,10 +184,18 @@ export function Finance() {
   const totalExpenses = expenses.reduce((sum, item) => sum + item.amount, 0)
   const grossProfit = revenue - costReport.knownCost
   const netProfit = grossProfit - totalExpenses
-  const supplierBalance = suppliers.reduce((sum, record) => {
+  const supplierBalance = supplierRecords.reduce((sum, record) => {
     const dueUnits = record.kind === 'credit' ? record.quantity : record.unitsSold
     return sum + Math.max(0, dueUnits * record.unitCost - record.settledAmount)
   }, 0)
+  const supplierBalances = supplierNames.map((name) => ({
+    name,
+    balance: supplierRecords.reduce((sum, record) => {
+      if (record.supplier.toLocaleLowerCase() !== name.toLocaleLowerCase()) return sum
+      const dueUnits = record.kind === 'credit' ? record.quantity : record.unitsSold
+      return sum + Math.max(0, dueUnits * record.unitCost - record.settledAmount)
+    }, 0),
+  }))
   const outstandingInvoices = invoices.reduce(
     (sum, invoice) => sum + Math.max(0, invoice.amount - invoice.paidAmount),
     0,
@@ -199,13 +217,13 @@ export function Finance() {
     submit(event, () => {
       const qty = amount(supplierQty)
       const cost = amount(supplierCost)
-      if (!supplier.trim() || !supplierProduct.trim() || !Number.isInteger(qty) || qty < 1 || !Number.isFinite(cost) || cost < 0 || !supplierReceived) {
-        setMessage('Enter a supplier, product, valid quantity, unit cost and received date.')
+      if (!supplier || !supplierProduct.trim() || !Number.isInteger(qty) || qty < 1 || !Number.isFinite(cost) || cost < 0 || !supplierReceived) {
+        setMessage('Select a supplier and enter a product, valid quantity, unit cost and received date.')
         return
       }
       addSupplierRecord({
         kind: supplierKind,
-        supplier: supplier.trim(),
+        supplier,
         product: supplierProduct.trim(),
         quantity: qty,
         unitCost: Math.round(cost),
@@ -220,6 +238,28 @@ export function Finance() {
       setSupplierDue('')
       setSupplierNote('')
       setMessage('Stock record saved.')
+    })
+  }
+
+  function saveNewSupplier(event: FormEvent<HTMLFormElement>) {
+    submit(event, () => {
+      const name = newSupplierName.trim()
+      if (!name) {
+        setMessage('Enter a supplier name.')
+        return
+      }
+      const existing = supplierNames.find(
+        (item) => item.toLocaleLowerCase() === name.toLocaleLowerCase(),
+      )
+      if (existing) {
+        setSupplier(existing)
+        setMessage('That supplier already exists and is selected.')
+        return
+      }
+      addSupplier(name)
+      setSupplier(name)
+      setNewSupplierName('')
+      setMessage('Supplier created and selected.')
     })
   }
 
@@ -320,6 +360,13 @@ export function Finance() {
 
   const forms = {
     suppliers: (
+      <>
+      <form onSubmit={saveNewSupplier} className="flex flex-col gap-3 border-b border-line bg-subtle/40 p-5 sm:flex-row sm:items-end">
+        <Field label="Create supplier">
+          <input required value={newSupplierName} onChange={(e) => setNewSupplierName(e.target.value)} placeholder="Supplier name" className="input" />
+        </Field>
+        <button className="btn-secondary shrink-0" type="submit"><Plus className="h-4 w-4" /> Create supplier</button>
+      </form>
       <form onSubmit={saveSupplier} className="grid gap-3 border-b border-line p-5 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Record type">
           <select value={supplierKind} onChange={(e) => setSupplierKind(e.target.value as SupplierRecordKind)} className="input">
@@ -327,7 +374,12 @@ export function Finance() {
             <option value="consignment">Consignment stock</option>
           </select>
         </Field>
-        <Field label="Supplier"><input required value={supplier} onChange={(e) => setSupplier(e.target.value)} className="input" /></Field>
+        <Field label="Select supplier">
+          <select required value={supplier} onChange={(e) => setSupplier(e.target.value)} className="input">
+            <option value="">Choose a supplier</option>
+            {supplierNames.map((name) => <option key={name} value={name}>{name}</option>)}
+          </select>
+        </Field>
         <Field label="Product / stock"><input required value={supplierProduct} onChange={(e) => setSupplierProduct(e.target.value)} className="input" /></Field>
         <Field label="Units received"><input required type="number" min="1" step="1" value={supplierQty} onChange={(e) => setSupplierQty(e.target.value)} className="input" /></Field>
         <Field label="Cost per unit (KSh)"><input required type="number" min="0" step="1" value={supplierCost} onChange={(e) => setSupplierCost(e.target.value)} className="input" /></Field>
@@ -336,6 +388,7 @@ export function Finance() {
         <Field label="Note (optional)"><input value={supplierNote} onChange={(e) => setSupplierNote(e.target.value)} className="input" /></Field>
         <div className="sm:col-span-2 lg:col-span-4"><button className="btn-primary" type="submit"><Plus className="h-4 w-4" /> Record stock</button></div>
       </form>
+      </>
     ),
     expenses: (
       <form onSubmit={saveExpense} className="grid gap-3 border-b border-line p-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -392,10 +445,30 @@ export function Finance() {
     ),
   }
 
-  function supplierOutstanding(record: (typeof suppliers)[number]) {
+  function supplierOutstanding(record: (typeof supplierRecords)[number]) {
     const dueUnits = record.kind === 'credit' ? record.quantity : record.unitsSold
     return Math.max(0, dueUnits * record.unitCost - record.settledAmount)
   }
+
+  const supplierSummaryTable = (
+    <div className="overflow-x-auto border-b border-line">
+      <table className="w-full min-w-[420px] text-left text-sm">
+        <thead className="table-head"><tr>
+          <th className="px-5 py-3">Supplier</th><th className="px-5 py-3">Outstanding balance</th>
+        </tr></thead>
+        <tbody className="divide-y divide-line">
+          {supplierBalances.length === 0
+            ? <tr><td colSpan={2} className="px-5 py-6 text-center text-fg-muted">Create a supplier to start tracking balances.</td></tr>
+            : supplierBalances.map(({ name, balance }) => (
+              <tr key={name}>
+                <td className="px-5 py-3 font-medium">{name}</td>
+                <td className={`px-5 py-3 font-semibold tabular-nums ${balance ? 'text-warning' : 'text-success'}`}>{formatKES(balance)}</td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
+    </div>
+  )
 
   const supplierTable = (
     <div className="overflow-x-auto">
@@ -406,7 +479,7 @@ export function Finance() {
           <th className="px-5 py-3">Obligation</th><th className="px-5 py-3">Settled</th><th className="px-5 py-3">Balance / action</th>
         </tr></thead>
         <tbody className="divide-y divide-line">
-          {suppliers.length === 0 ? <tr><td colSpan={7} className="px-5 py-8 text-center text-fg-muted">No supplier stock records yet.</td></tr> : suppliers.map((record) => {
+          {supplierRecords.length === 0 ? <tr><td colSpan={7} className="px-5 py-8 text-center text-fg-muted">No supplier stock records yet.</td></tr> : supplierRecords.map((record) => {
             const balance = supplierOutstanding(record)
             const obligation = (record.kind === 'credit' ? record.quantity : record.unitsSold) * record.unitCost
             return <tr key={record.id}>
@@ -494,7 +567,7 @@ export function Finance() {
         {costReport.uncostedUnits ? <p className="rounded-xl border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-fg-muted">Profit is an estimate and excludes product cost for {costReport.uncostedUnits} sold unit(s). Add purchase costs in Products; older sales without a cost snapshot remain uncosted.</p> : null}
         <div className="grid gap-4 md:grid-cols-2">
           <SectionCard title="Supplier balances" description="Unsettled supplier credit and sold consignment stock">
-            <div className="p-5"><p className="text-2xl font-semibold tabular-nums">{formatKES(supplierBalance)}</p><p className="mt-1 text-sm text-fg-muted">{suppliers.length} stock records</p></div>
+            <div className="p-5"><p className="text-2xl font-semibold tabular-nums">{formatKES(supplierBalance)}</p><p className="mt-1 text-sm text-fg-muted">{supplierRecords.length} stock records across {supplierNames.length} suppliers</p></div>
           </SectionCard>
           <SectionCard title="Accounts receivable" description="Outstanding customer invoice amounts">
             <div className="p-5"><p className="text-2xl font-semibold tabular-nums">{formatKES(outstandingInvoices)}</p><p className="mt-1 text-sm text-fg-muted">{invoices.filter((invoice) => invoice.amount > invoice.paidAmount).length} unpaid or partial invoices</p></div>
@@ -510,7 +583,7 @@ export function Finance() {
       </> : null}
 
       {view === 'suppliers' ? <SectionCard title="Supplier credit & consignment" description="Credit is payable on all received units; consignment is payable only as units are marked sold. Settlements cannot exceed the current obligation.">
-        {forms.suppliers}{supplierTable}
+        {forms.suppliers}{supplierSummaryTable}{supplierTable}
       </SectionCard> : null}
       {view === 'expenses' ? <SectionCard title="Operating expenses" description="Expense VAT rate is recorded for reference; VAT return totals are based on VAT records.">
         {forms.expenses}

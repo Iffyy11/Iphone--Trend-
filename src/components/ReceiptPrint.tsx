@@ -87,7 +87,12 @@ export function ReceiptPrint({ order }: { order: Order }) {
             {order.lines.map((l, i) => {
               const hasDeviceDetails =
                 Boolean(l.imei?.trim()) ||
+                Boolean(l.imei2?.trim()) ||
                 Boolean(l.serialNumber?.trim()) ||
+                Boolean(l.color?.trim()) ||
+                Boolean(l.storage?.trim()) ||
+                l.batteryHealth !== undefined ||
+                Boolean(l.condition?.trim()) ||
                 (l.warrantyMonths ?? 0) > 0
               return (
                 <li key={i} className="font-sans text-[11px]">
@@ -106,10 +111,30 @@ export function ReceiptPrint({ order }: { order: Order }) {
                         <span className="font-sans font-semibold text-slate-500">IMEI</span>{' '}
                         {l.imei.trim()}
                       </p> : null}
+                      {l.imei2?.trim() ? <p>
+                        <span className="font-sans font-semibold text-slate-500">IMEI2</span>{' '}
+                        {l.imei2.trim()}
+                      </p> : null}
                       <p className="mt-0.5">
                         <span className="font-sans font-semibold text-slate-500">Serial</span>{' '}
                         {l.serialNumber?.trim() || '—'}
                       </p>
+                      {l.color?.trim() ? <p>
+                        <span className="font-sans font-semibold text-slate-500">Color</span>{' '}
+                        {l.color.trim()}
+                      </p> : null}
+                      {l.storage?.trim() ? <p>
+                        <span className="font-sans font-semibold text-slate-500">Storage</span>{' '}
+                        {l.storage.trim()}
+                      </p> : null}
+                      {l.batteryHealth !== undefined ? <p>
+                        <span className="font-sans font-semibold text-slate-500">Battery health</span>{' '}
+                        {l.batteryHealth}%
+                      </p> : null}
+                      {l.condition?.trim() ? <p>
+                        <span className="font-sans font-semibold text-slate-500">Condition</span>{' '}
+                        {l.condition.trim()}
+                      </p> : null}
                       <p className="mt-0.5">
                         <span className="font-sans font-semibold text-slate-500">Warranty</span>{' '}
                         {l.warrantyMonths
