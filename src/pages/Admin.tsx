@@ -36,7 +36,7 @@ import {
   exportWarrantiesCsv,
   warrantyRowMeta,
 } from '../lib/warrantyRecords'
-import type { Order, Product } from '../types'
+import type { Order, Product, TradeInRecord } from '../types'
 import { ADMIN_SECTIONS, parseAdminTab } from '../navigation'
 import { usePosStore } from '../store/posStore'
 
@@ -57,6 +57,7 @@ function formatSalesRangeLabel(start: Date, end: Date) {
 
 export function Admin() {
   const orders = usePosStore((s) => s.orders)
+  const tradeIns = usePosStore((s) => s.tradeIns)
   const products = usePosStore((s) => s.products)
   const cashiers = usePosStore((s) => s.cashiers ?? [])
   const adminAccount = usePosStore((s) => s.adminAccount)
@@ -87,6 +88,7 @@ export function Admin() {
   const [adminNewPw2, setAdminNewPw2] = useState('')
   const [adminAccountMsg, setAdminAccountMsg] = useState('')
   const [orderQuery, setOrderQuery] = useState('')
+  const [tradeInQuery, setTradeInQuery] = useState('')
   const [customerQuery, setCustomerQuery] = useState('')
   const [warrantyQuery, setWarrantyQuery] = useState('')
   const [warrantyFilter, setWarrantyFilter] = useState<'all' | 'active' | 'expired'>('all')
@@ -153,6 +155,24 @@ export function Admin() {
       )
     })
   }, [orders, orderQuery])
+
+  const filteredTradeIns = useMemo(() => {
+    const query = tradeInQuery.trim().toLowerCase()
+    if (!query) return tradeIns
+    return tradeIns.filter((tradeIn) =>
+      [
+        tradeIn.customer,
+        tradeIn.device,
+        tradeIn.imei,
+        tradeIn.imei2,
+        tradeIn.serialNumber,
+        tradeIn.color,
+        tradeIn.storage,
+        tradeIn.condition,
+        tradeIn.saleReference,
+      ].some((value) => value?.toLowerCase().includes(query)),
+    )
+  }, [tradeIns, tradeInQuery])
 
   const filteredCustomers = useMemo(() => {
     const n = customerQuery.trim().toLowerCase()
@@ -470,6 +490,69 @@ export function Admin() {
                 />
               ))
             )}
+          </div>
+        </div>
+      ) : null}
+
+      {tab === 'trade-ins' ? (
+        <div className="space-y-4">
+          <SearchInput
+            value={tradeInQuery}
+            onChange={setTradeInQuery}
+            placeholder="Search customer, device, IMEI, serial or sale reference…"
+          />
+          <div className="card overflow-x-auto">
+            <table className="w-full min-w-[980px] text-left text-sm">
+              <thead className="table-head">
+                <tr>
+                  <th className="px-5 py-3">Received</th>
+                  <th className="px-5 py-3">Customer</th>
+                  <th className="px-5 py-3">Trade-in device</th>
+                  <th className="px-5 py-3">Device details</th>
+                  <th className="px-5 py-3">Condition</th>
+                  <th className="px-5 py-3">Sale / receipt</th>
+                  <th className="px-5 py-3 text-right">Value</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {filteredTradeIns.length === 0 ? (
+                  <tr>
+                    <td colSpan={7}>
+                      <EmptyState>No trade-ins match.</EmptyState>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredTradeIns.map((tradeIn: TradeInRecord) => (
+                    <tr key={tradeIn.id} className="transition hover:bg-subtle/50">
+                      <td className="whitespace-nowrap px-5 py-3 text-xs text-fg-muted">
+                        {new Date(tradeIn.receivedAt).toLocaleDateString('en-KE')}
+                      </td>
+                      <td className="px-5 py-3 font-medium">{tradeIn.customer}</td>
+                      <td className="px-5 py-3">{tradeIn.device}</td>
+                      <td className="px-5 py-3 font-mono text-xs text-fg-muted">
+                        {tradeIn.imei ? <p>IMEI {tradeIn.imei}</p> : null}
+                        {tradeIn.imei2 ? <p>IMEI2 {tradeIn.imei2}</p> : null}
+                        {tradeIn.serialNumber ? <p>Serial {tradeIn.serialNumber}</p> : null}
+                        {tradeIn.color ? <p>Color {tradeIn.color}</p> : null}
+                        {tradeIn.storage ? <p>Storage {tradeIn.storage}</p> : null}
+                        {tradeIn.batteryHealth !== undefined ? <p>Battery {tradeIn.batteryHealth}%</p> : null}
+                        {!tradeIn.imei && !tradeIn.imei2 && !tradeIn.serialNumber && !tradeIn.color &&
+                        !tradeIn.storage && tradeIn.batteryHealth === undefined
+                          ? 'No additional details'
+                          : null}
+                      </td>
+                      <td className="px-5 py-3 text-fg-muted">{tradeIn.condition}</td>
+                      <td className="px-5 py-3 font-mono text-xs">
+                        {tradeIn.saleReference ? orderRefFromId(tradeIn.saleReference) : '—'}
+                      </td>
+                      <td className="px-5 py-3 text-right font-semibold tabular-nums">
+                        {formatKES(tradeIn.value)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       ) : null}

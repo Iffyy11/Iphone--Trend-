@@ -474,13 +474,14 @@ export function Finance() {
         <Field label="Received on"><input required type="date" value={supplierReceived} onChange={(e) => setSupplierReceived(e.target.value)} className="input" /></Field>
         <Field label="Due date (optional)"><input type="date" value={supplierDue} onChange={(e) => setSupplierDue(e.target.value)} className="input" /></Field>
         <Field label="Note (optional)"><input value={supplierNote} onChange={(e) => setSupplierNote(e.target.value)} className="input" /></Field>
-        <div className="sm:col-span-2 lg:col-span-4"><button className="btn-primary" type="submit"><Plus className="h-4 w-4" /> Record stock</button></div>
-      </form>
+        <div className="sm:col-span-2 lg:col-span-4">
+          <p className="text-xs text-fg-muted">For phones, add the IMEI and specifications for each unit below before recording this delivery.</p>
+        </div>
       {supplierDeviceDrafts.length > 0 ? (
-        <div className="space-y-3 border-b border-line p-5">
+        <div className="space-y-3 border-b border-line p-5 sm:col-span-2 lg:col-span-4">
           <div>
             <h3 className="text-sm font-semibold">Received device details</h3>
-            <p className="mt-1 text-xs text-fg-muted">Optional; enter identifiers and specifications for each unit received.</p>
+            <p className="mt-1 text-xs text-fg-muted">Enter details separately for every phone. These are saved with the stock record and shown in the Stock list.</p>
           </div>
           {supplierDeviceDrafts.map((device, index) => (
             <div key={index} className="rounded-xl border border-line p-3">
@@ -501,6 +502,8 @@ export function Finance() {
           ))}
         </div>
       ) : null}
+        <div className="sm:col-span-2 lg:col-span-4"><button className="btn-primary" type="submit"><Plus className="h-4 w-4" /> Record stock</button></div>
+      </form>
       </>
     ),
     expenses: (
