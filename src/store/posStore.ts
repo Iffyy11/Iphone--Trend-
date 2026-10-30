@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { apiJson, hasApiBase } from '../lib/api'
+import { apiJson, hasApiBase, setApiToken } from '../lib/api'
 import { hashWithSalt, normalizeEmail, randomSalt } from '../lib/hash'
 import { seedProducts } from '../data/seedProducts'
 import { addMonths, toISODateEndOfDay } from '../lib/warranty'
@@ -71,11 +71,14 @@ interface PosState {
   session: Session
   adminAccount: AdminAccount | null
   cashiers: CashierAccount[]
+  sharedSyncError: string
 
   initAdminAccount: (email: string, password: string) => Promise<boolean>
   adminLogin: (email: string, password: string) => Promise<boolean>
   cashierLogin: (pin: string) => Promise<boolean>
   fetchCashiers: () => Promise<void>
+  refreshSharedData: (polling?: boolean) => Promise<boolean>
+  resetSharedData: () => Promise<boolean>
   logout: () => void
 
   addCashier: (name: string, pin: string) => Promise<void>
@@ -113,7 +116,83 @@ interface PosState {
   voidOrder: (id: string) => void
 }
 
+type SharedPosData = Pick<
+  PosState,
+  'products' | 'orders' | 'suppliers' | 'supplierRecords' |
+  'supplierPayments' | 'expenses' | 'invoices' | 'tradeIns'
+>
+
+type SharedStateResponse = {
+  ok: boolean
+  initialized: boolean
+  epoch: number
+  revision: number
+  data: SharedPosData | null
+  conflict?: boolean
+}
+
 const defaultSession: Session = { role: null, staffName: '' }
+let sharedEpoch = 0
+let sharedRevision = 0
+let applyingSharedData = false
+let sharedSyncQueue = Promise.resolve()
+
+function sharedDataFrom(state: PosState): SharedPosData {
+  return {
+    products: state.products,
+    orders: state.orders,
+    suppliers: state.suppliers,
+    supplierRecords: state.supplierRecords,
+    supplierPayments: state.supplierPayments,
+    expenses: state.expenses,
+    invoices: state.invoices,
+    tradeIns: state.tradeIns,
+  }
+}
+
+function cleanSharedData(products: Product[]): SharedPosData {
+  return {
+    products,
+    orders: [],
+    suppliers: [],
+    supplierRecords: [],
+    supplierPayments: [],
+    expenses: [],
+    invoices: [],
+    tradeIns: [],
+  }
+}
+
+function mergeSharedData(local: SharedPosData, remote: SharedPosData): SharedPosData {
+  const mergeById = <T extends { id: string }>(left: T[], right: T[]) => {
+    const records = new Map(left.map((item) => [item.id, item]))
+    for (const item of right) records.set(item.id, item)
+    return [...records.values()]
+  }
+  return {
+    products: mergeById(local.products, remote.products),
+    orders: mergeById(local.orders, remote.orders).map((order) => {
+      const saved = local.orders.find((item) => item.id === order.id)
+      return saved?.status === 'void' ? { ...order, status: 'void' } : order
+    }),
+    suppliers: [...new Set([...local.suppliers, ...remote.suppliers])],
+    supplierRecords: mergeById(local.supplierRecords, remote.supplierRecords).map((record) => {
+      const localRecord = local.supplierRecords.find((item) => item.id === record.id)
+      return localRecord
+        ? { ...record, settledAmount: Math.max(localRecord.settledAmount, record.settledAmount) }
+        : record
+    }),
+    supplierPayments: mergeById(local.supplierPayments, remote.supplierPayments),
+    expenses: mergeById(local.expenses, remote.expenses),
+    invoices: mergeById(local.invoices, remote.invoices).map((invoice) => {
+      const localInvoice = local.invoices.find((item) => item.id === invoice.id)
+      return localInvoice
+        ? { ...invoice, paidAmount: Math.max(localInvoice.paidAmount, invoice.paidAmount) }
+        : invoice
+    }),
+    tradeIns: mergeById(local.tradeIns, remote.tradeIns),
+  }
+}
 
 export const usePosStore = create<PosState>()(
   persist(
@@ -129,6 +208,7 @@ export const usePosStore = create<PosState>()(
       session: defaultSession,
       adminAccount: null,
       cashiers: [],
+      sharedSyncError: '',
 
       async initAdminAccount(email, password) {
         const e = normalizeEmail(email)
@@ -155,14 +235,20 @@ export const usePosStore = create<PosState>()(
       async adminLogin(email, password) {
         if (hasApiBase()) {
           try {
-            const r = await apiJson<{ ok: boolean; staffName?: string }>('/api/admin/login', {
+            const r = await apiJson<{ ok: boolean; staffName?: string; token?: string }>('/api/admin/login', {
               method: 'POST',
               body: JSON.stringify({ email, password }),
             })
-            if (!r.ok) return false
+            if (!r.ok || !r.token) return false
+            setApiToken(r.token)
+            if (!await get().refreshSharedData()) {
+              setApiToken(null)
+              return false
+            }
             set({ session: { role: 'admin', staffName: r.staffName || 'Admin' } })
             return true
           } catch {
+            setApiToken(null)
             return false
           }
         }
@@ -180,14 +266,20 @@ export const usePosStore = create<PosState>()(
       async cashierLogin(pin) {
         if (hasApiBase()) {
           try {
-            const r = await apiJson<{ ok: boolean; staffName?: string }>('/api/cashiers/login', {
+            const r = await apiJson<{ ok: boolean; staffName?: string; token?: string }>('/api/cashiers/login', {
               method: 'POST',
               body: JSON.stringify({ pin }),
             })
-            if (!r.ok) return false
+            if (!r.ok || !r.token) return false
+            setApiToken(r.token)
+            if (!await get().refreshSharedData()) {
+              setApiToken(null)
+              return false
+            }
             set({ session: { role: 'cashier', staffName: r.staffName || 'Cashier' } })
             return true
           } catch {
+            setApiToken(null)
             return false
           }
         }
@@ -214,7 +306,85 @@ export const usePosStore = create<PosState>()(
         }
       },
 
+      async refreshSharedData(polling = false) {
+        if (!hasApiBase()) return true
+        try {
+          if (polling) {
+            if (get().sharedSyncError) return false
+            await sharedSyncQueue
+          }
+          const localAtStart = sharedDataFrom(get())
+          let remote = await apiJson<SharedStateResponse>('/api/pos/state')
+          if (!remote.initialized) {
+            if (polling) return false
+            const response = await apiJson<SharedStateResponse>('/api/pos/state', {
+              method: 'PUT',
+              body: JSON.stringify({
+                initialize: true,
+                epoch: 0,
+                revision: 0,
+                data: cleanSharedData(get().products),
+              }),
+            })
+            remote = response.conflict
+              ? await apiJson<SharedStateResponse>('/api/pos/state')
+              : response
+          }
+          if (!remote.data) throw new Error('Shared POS data was not returned by the server.')
+          if (polling) {
+            const localNow = sharedDataFrom(get())
+            const changedDuringRequest = sharedDataKeys.some((key) => localNow[key] !== localAtStart[key])
+            if (changedDuringRequest) return true
+            if (remote.epoch === sharedEpoch && remote.revision === sharedRevision) return true
+          }
+          sharedEpoch = remote.epoch
+          sharedRevision = remote.revision
+          applyingSharedData = true
+          set({ ...remote.data, sharedSyncError: '' })
+          applyingSharedData = false
+          return true
+        } catch (error) {
+          applyingSharedData = false
+          set({ sharedSyncError: error instanceof Error ? error.message : String(error) })
+          return false
+        }
+      },
+
+      async resetSharedData() {
+        if (!hasApiBase() || get().session.role !== 'admin') {
+          set({ sharedSyncError: 'Sign in as an administrator on the connected Render service to reset shared records.' })
+          return false
+        }
+        try {
+          await sharedSyncQueue
+          const response = await apiJson<SharedStateResponse>('/api/pos/reset', {
+            method: 'POST',
+            body: JSON.stringify({ epoch: sharedEpoch, revision: sharedRevision }),
+          })
+          if (!response.data) throw new Error('The server did not return the reset POS data.')
+          if (response.conflict) {
+            sharedEpoch = response.epoch
+            sharedRevision = response.revision
+            applyingSharedData = true
+            set({ ...response.data })
+            applyingSharedData = false
+            throw new Error('Shared data changed before the reset. Review the latest records and try again.')
+          }
+          sharedEpoch = response.epoch
+          sharedRevision = response.revision
+          applyingSharedData = true
+          set({ ...response.data, sharedSyncError: '' })
+          applyingSharedData = false
+          return true
+        } catch (error) {
+          applyingSharedData = false
+          set({ sharedSyncError: error instanceof Error ? error.message : String(error) })
+          return false
+        }
+      },
+
       logout() {
+        setApiToken(null)
         set({ session: defaultSession })
       },
 
@@ -638,3 +808,62 @@ export const usePosStore = create<PosState>()(
     },
   ),
 )
+
+const sharedDataKeys: (keyof SharedPosData)[] = [
+  'products',
+  'orders',
+  'suppliers',
+  'supplierRecords',
+  'supplierPayments',
+  'expenses',
+  'invoices',
+  'tradeIns',
+]
+
+usePosStore.subscribe((state, previousState) => {
+  if (
+    !hasApiBase() ||
+    !state.session.role ||
+    applyingSharedData ||
+    sharedDataKeys.every((key) => state[key] === previousState[key])
+  ) return
+
+  const localData = sharedDataFrom(state)
+  sharedSyncQueue = sharedSyncQueue.then(async () => {
+    let response = await apiJson<SharedStateResponse>('/api/pos/state', {
+      method: 'PUT',
+      body: JSON.stringify({ epoch: sharedEpoch, revision: sharedRevision, data: localData }),
+    })
+    if (response.conflict) {
+      if (!response.data) throw new Error('Shared POS data changed; reload the app and try again.')
+      if (response.epoch !== sharedEpoch) {
+        sharedEpoch = response.epoch
+        sharedRevision = response.revision
+        applyingSharedData = true
+        usePosStore.setState({ ...response.data, sharedSyncError: '' })
+        applyingSharedData = false
+        return
+      }
+      const merged = mergeSharedData(localData, response.data)
+      response = await apiJson<SharedStateResponse>('/api/pos/state', {
+        method: 'PUT',
+        body: JSON.stringify({
+          epoch: response.epoch,
+          revision: response.revision,
+          data: merged,
+        }),
+      })
+      if (response.conflict || !response.data) {
+        throw new Error('Shared POS data changed again. Reload the app before continuing.')
+      }
+    }
+    sharedEpoch = response.epoch
+    sharedRevision = response.revision
+    usePosStore.setState({ sharedSyncError: '' })
+  }).catch((error: unknown) => {
+    applyingSharedData = false
+    usePosStore.setState({
+      sharedSyncError: error instanceof Error ? error.message : String(error),
+    })
+  })
+})

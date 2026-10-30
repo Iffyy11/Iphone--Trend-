@@ -2,9 +2,9 @@
 
 ## Render deployment
 
-The Render Web Service serves both the website and API. Administrator and cashier
-accounts are stored in PostgreSQL. Product catalog, sales, customer, and finance
-data remain in each browser's local storage.
+The Render Web Service serves both the website and API. Administrator and
+cashier accounts, products, sales, customers, supplier stock, payments and
+finance records are stored in PostgreSQL and shared across devices.
 
 1. Create a PostgreSQL database in Render.
 2. Create a Render Web Service from this repository. Leave **Root Directory**
@@ -22,8 +22,11 @@ when using that external connection. Build the frontend with `npm run build`,
 then run `npm run server:dev`.
 
 Moving the API to PostgreSQL does not transfer accounts from a previous MongoDB
-database. Create the first admin again and re-add cashier accounts. Browser-local
-POS data is not moved to PostgreSQL by this change.
+database. Create the first admin again and re-add cashier accounts. On the first
+administrator sign-in after shared POS storage is deployed, the product catalog
+from that browser initializes the shared catalog; legacy browser-local sales and
+finance records are not imported. Use **Admin → Finance → Reset sales & supplier
+data** to clear shared transactions while keeping products and accounts.
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

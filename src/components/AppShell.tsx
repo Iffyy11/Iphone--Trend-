@@ -114,10 +114,26 @@ function SidebarContent() {
 export function AppShell() {
   const location = useLocation()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const sessionRole = usePosStore((s) => s.session.role)
+  const sharedSyncError = usePosStore((s) => s.sharedSyncError)
+  const refreshSharedData = usePosStore((s) => s.refreshSharedData)
 
   useEffect(() => {
     setDrawerOpen(false)
   }, [location.pathname, location.search])
+
+  useEffect(() => {
+    if (!sessionRole) return
+    const refresh = () => {
+      if (!usePosStore.getState().sharedSyncError) void refreshSharedData(true)
+    }
+    const interval = window.setInterval(refresh, 20_000)
+    window.addEventListener('focus', refresh)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [sessionRole, refreshSharedData])
 
   return (
     <div className="min-h-dvh bg-canvas">
@@ -165,6 +181,11 @@ export function AppShell() {
 
       <main className="lg:pl-64">
         <div className="mx-auto w-full max-w-7xl px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] sm:px-6 lg:px-10 lg:py-8">
+          {sharedSyncError ? (
+            <div role="alert" className="mb-5 rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
+              POS data is not syncing to the shared server. Keep this page open and reconnect before recording more transactions. {sharedSyncError}
+            </div>
+          ) : null}
           <Outlet />
         </div>
       </main>
